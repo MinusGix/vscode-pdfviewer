@@ -137,11 +137,10 @@ export class PdfPreview extends Disposable {
     )}">
 <link rel="stylesheet" href="${resolveAsUri('lib', 'web', 'viewer.css')}">
 <link rel="stylesheet" href="${resolveAsUri('lib', 'pdf.css')}">
-<script src="${resolveAsUri('lib', 'build', 'pdf.js')}"></script>
-<script src="${resolveAsUri('lib', 'build', 'pdf.worker.js')}"></script>
-<script src="${resolveAsUri('lib', 'build', 'pdfAnnotate.js')}"></script>
-<script src="${resolveAsUri('lib', 'web', 'viewer.js')}"></script>
-<script src="${resolveAsUri('lib', 'main.js')}"></script>
+<script src="${resolveAsUri('lib', 'build', 'pdf.mjs')}" type="module"></script>
+<script src="${resolveAsUri('lib', 'build', 'pdf.worker.mjs')}" type="module"></script>
+<script src="${resolveAsUri('lib', 'web', 'viewer.mjs')}" type="module"></script>
+<script src="${resolveAsUri('lib', 'main.js')}" type="module"></script>
 </head>`;
 
     const bodyPath = path.join(this.extensionRoot.path, 'lib', 'viewer-body.html');

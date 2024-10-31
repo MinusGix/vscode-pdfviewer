@@ -1,9 +1,16 @@
-html, body {
+:root {
+  --toolbarButton-selectTool-icon: url(web/images/secondaryToolbarButton-selectTool.svg);
+  --toolbarButton-handTool-icon: url(web/images/secondaryToolbarButton-handTool.svg);
+}
+
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
 }
+
 #pdf-viewer {
   display: block;
   border: none;
@@ -11,4 +18,14 @@ html, body {
   position: absolute;
   width: 100%;
   height: 100%;
+}
+
+#toolbarCursorSelectTool::before {
+  -webkit-mask-image: var(--toolbarButton-selectTool-icon);
+  mask-image: var(--toolbarButton-selectTool-icon);
+}
+
+#toolbarCursorHandTool::before {
+  -webkit-mask-image: var(--toolbarButton-handTool-icon);
+  mask-image: var(--toolbarButton-handTool-icon);
 }
