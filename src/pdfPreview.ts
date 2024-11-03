@@ -11,10 +11,13 @@ type PreviewState = 'Disposed' | 'Visible' | 'Active';
 
 export class PdfPreview extends Disposable {
   private _previewState: PreviewState = 'Visible';
-
+  private _onDidChange = new vscode.EventEmitter<void>();
+  public readonly onDidChange = this._onDidChange.event;
+  private _onDoSave = new vscode.EventEmitter<[Uint8Array, string]>();
+  public readonly onDoSave = this._onDoSave.event;
   constructor(
     private readonly extensionRoot: vscode.Uri,
-    private readonly resource: vscode.Uri,
+    public readonly resource: vscode.Uri,
     private readonly webviewEditor: vscode.WebviewPanel
   ) {
     super();
@@ -38,6 +41,13 @@ export class PdfPreview extends Disposable {
               webviewEditor.viewColumn
             );
             break;
+          }
+          case 'documentDirty': {
+            this._onDidChange.fire();
+            break;
+          }
+          case 'save': {
+            this._onDoSave.fire([message.data, message.destination]);
           }
         }
       })
@@ -75,6 +85,10 @@ export class PdfPreview extends Disposable {
 
     this.webviewEditor.webview.html = this.getWebviewContents();
     this.update();
+  }
+
+  public requestSave(destination: vscode.Uri) {
+    this.webviewEditor.webview.postMessage({ type: 'save', destination });
   }
 
   private reload(): void {

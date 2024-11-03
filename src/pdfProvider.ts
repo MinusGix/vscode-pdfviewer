@@ -1,16 +1,28 @@
 import * as vscode from 'vscode';
 import { PdfPreview } from './pdfPreview';
 
-export class PdfCustomProvider implements vscode.CustomReadonlyEditorProvider {
+// TODO: we could have deeper integration with vscode's undo/redo system via CustomDocumentEditEvent's undo/redo methods.
+// however, that would require more message passing between the webview and the extension and some reimplementation. I don't think it is worthwhile.
+
+// TODO: It'd be nice to have the PDF preview not be marked as dirty if you undo to the last saved state.
+// Since we don't really integrate with vscode's undo/redo system at all, all vscode knows is that there was a change.
+// Unfortunately there's no inverse event to say that it has become non-dirty.
+
+// TODO: support backups
+
+export class PdfCustomProvider implements vscode.CustomEditorProvider {
   public static readonly viewType = 'pdf.preview';
 
   private readonly _previews = new Set<PdfPreview>();
   private _activePreview: PdfPreview | undefined;
 
-  constructor(private readonly extensionRoot: vscode.Uri) {}
+  private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<vscode.CustomDocument>>();
+  public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
+
+  constructor(private readonly extensionRoot: vscode.Uri) { }
 
   public openCustomDocument(uri: vscode.Uri): vscode.CustomDocument {
-    return { uri, dispose: (): void => {} };
+    return { uri, dispose: (): void => { } };
   }
 
   public async resolveCustomEditor(
@@ -37,6 +49,27 @@ export class PdfCustomProvider implements vscode.CustomReadonlyEditorProvider {
         this.setActivePreview(undefined);
       }
     });
+
+    preview.onDidChange(() => {
+      this._onDidChangeCustomDocument.fire({
+        document: document
+      });
+    });
+
+    preview.onDoSave(([data, filename]) => {
+      if (filename === undefined) {
+        console.error("onDoSave: filename is undefined. Ignoring.");
+        return;
+      } else if (data === undefined) {
+        console.error("onDoSave: data is undefined. Ignoring.");
+        return;
+      }
+
+      let filename2 = vscode.Uri.from(filename as any);
+      // we shouldn't actually call save custom document here, we should just save it.
+      // save custom document should actually ask the webview to save it which would result in this event.
+      vscode.workspace.fs.writeFile(document.uri, data);
+    });
   }
 
   public get activePreview(): PdfPreview {
@@ -45,5 +78,60 @@ export class PdfCustomProvider implements vscode.CustomReadonlyEditorProvider {
 
   private setActivePreview(value: PdfPreview | undefined): void {
     this._activePreview = value;
+  }
+
+  public async saveCustomDocument(
+    document: vscode.CustomDocument,
+    cancellation: vscode.CancellationToken
+  ): Promise<void> {
+    await this.saveCustomDocumentAs(document, document.uri, cancellation);
+  }
+
+  /**
+   * Alert the webview to send us the data to save (via onDoSave)
+   */
+  private requestSave(document: vscode.CustomDocument, destination: vscode.Uri): void {
+    for (const preview of this._previews) {
+      if (preview.resource.toString() === document.uri.toString()) {
+        preview.requestSave(destination);
+        break;
+      }
+    }
+  }
+
+  public async saveCustomDocumentAs(
+    document: vscode.CustomDocument,
+    destination: vscode.Uri,
+    cancellation: vscode.CancellationToken
+  ): Promise<void> {
+    // vscode.window.showInformationMessage(`saveCustomDocumentAs: ${document.uri.toString()} -> ${destination.toString()}`);
+    this.requestSave(document, destination);
+  }
+
+  public async revertCustomDocument(
+    document: vscode.CustomDocument,
+    cancellation: vscode.CancellationToken
+  ): Promise<void> {
+    // vscode.window.showInformationMessage(`revertCustomDocument: ${document.uri.toString()}`);
+    // TODO: Implement revert logic here (revert to last saved version)
+  }
+
+  public async backupCustomDocument(
+    document: vscode.CustomDocument,
+    context: vscode.CustomDocumentBackupContext,
+    cancellation: vscode.CancellationToken
+  ): Promise<vscode.CustomDocumentBackup> {
+    // vscode.window.showInformationMessage(`backupCustomDocument: ${document.uri.toString()} -> ${context.destination.toString()}`);
+
+    return {
+      id: context.destination.toString(),
+      delete: async () => {
+        try {
+          await vscode.workspace.fs.delete(context.destination);
+        } catch {
+          // Ignore
+        }
+      }
+    };
   }
 }
