@@ -13,8 +13,15 @@ export class PdfPreview extends Disposable {
   private _previewState: PreviewState = 'Visible';
   private _onDidChange = new vscode.EventEmitter<void>();
   public readonly onDidChange = this._onDidChange.event;
-  private _onDoSave = new vscode.EventEmitter<[Uint8Array, string]>();
+
+  // [file_data, URI]
+  private _onDoSave = new vscode.EventEmitter<[Uint8Array, vscode.Uri]>();
   public readonly onDoSave = this._onDoSave.event;
+
+  // text
+  private _onCopyNote = new vscode.EventEmitter<string>();
+  public readonly onCopyNote = this._onCopyNote.event;
+
   constructor(
     private readonly extensionRoot: vscode.Uri,
     public readonly resource: vscode.Uri,
@@ -48,6 +55,10 @@ export class PdfPreview extends Disposable {
           }
           case 'save': {
             this._onDoSave.fire([message.data, message.destination]);
+          }
+          case 'copy-note': {
+            this._onCopyNote.fire(message.text)
+            break;
           }
         }
       })
@@ -89,6 +100,10 @@ export class PdfPreview extends Disposable {
 
   public requestSave(destination: vscode.Uri) {
     this.webviewEditor.webview.postMessage({ type: 'save', destination });
+  }
+
+  public copyNoteToEditorSplit() {
+    this.webviewEditor.webview.postMessage({ type: 'copy-note' });
   }
 
   private reload(): void {

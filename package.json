@@ -43,6 +43,21 @@
         ]
       }
     ],
+    "menus": {
+      "webview/context": [
+        {
+          "command": "pdf.preview.noteTransfer",
+          "when": "webviewId == 'pdf.preview'"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pdf.preview.noteTransfer",
+        "title": "Transfer Note to Editor Split",
+        "category": "PDF"
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "PDF Preview",
@@ -88,7 +103,14 @@
           ]
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "pdf.preview.noteTransfer",
+        "key": "alt+q",
+        "when": "resourceExtname == .pdf"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

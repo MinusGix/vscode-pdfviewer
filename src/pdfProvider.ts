@@ -70,6 +70,30 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       // save custom document should actually ask the webview to save it which would result in this event.
       vscode.workspace.fs.writeFile(document.uri, data);
     });
+
+    preview.onCopyNote((text) => {
+      // TODO(minor): we could be smarter about this , this won't necessarily get the 'right' editor split in more complex scenarios.
+      // At minimum we should prefer the editor split adjacent to the PDF preview.
+
+      // Get the other editor split, which might not be focused
+      const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() !== this.activePreview.resource.toString());
+      if (!editor) {
+        vscode.window.showInformationMessage("No other editor split found");
+        return;
+      }
+
+      editor.edit(editBuilder => {
+        const position = editor.selection.active;
+        const line = editor.document.lineAt(position.line);
+
+        // If the current line is not empty, insert a newline first
+        if (line.text.trim().length > 0) {
+          editBuilder.insert(position, '\n' + text);
+        } else {
+          editBuilder.insert(position, text);
+        }
+      });
+    });
   }
 
   public get activePreview(): PdfPreview {
@@ -78,6 +102,15 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
 
   private setActivePreview(value: PdfPreview | undefined): void {
     this._activePreview = value;
+  }
+
+  public transferNoteToEditorSplit(): void {
+    if (!this.activePreview) {
+      return;
+    }
+
+    // Now we have to tell the webview to copy the text and send it back to us.
+    this.activePreview.copyNoteToEditorSplit();
   }
 
   public async saveCustomDocument(

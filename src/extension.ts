@@ -17,6 +17,12 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     )
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("pdf.preview.noteTransfer", () => {
+      provider.transferNoteToEditorSplit();
+    })
+  );
 }
 
-export function deactivate(): void {}
+export function deactivate(): void { }
