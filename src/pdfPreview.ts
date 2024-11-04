@@ -18,8 +18,8 @@ export class PdfPreview extends Disposable {
   private _onDoSave = new vscode.EventEmitter<[Uint8Array, vscode.Uri]>();
   public readonly onDoSave = this._onDoSave.event;
 
-  // text
-  private _onCopyNote = new vscode.EventEmitter<string>();
+  // [text, pageNumber]
+  private _onCopyNote = new vscode.EventEmitter<[string, number]>();
   public readonly onCopyNote = this._onCopyNote.event;
 
   constructor(
@@ -57,7 +57,7 @@ export class PdfPreview extends Disposable {
             this._onDoSave.fire([message.data, message.destination]);
           }
           case 'copy-note': {
-            this._onCopyNote.fire(message.text)
+            this._onCopyNote.fire([message.text, message.pageNumber])
             break;
           }
         }

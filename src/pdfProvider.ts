@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { PdfPreview } from './pdfPreview';
 
 // TODO: we could have deeper integration with vscode's undo/redo system via CustomDocumentEditEvent's undo/redo methods.
@@ -71,7 +72,11 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       vscode.workspace.fs.writeFile(document.uri, data);
     });
 
-    preview.onCopyNote((text) => {
+    preview.onCopyNote(([text, pageNumber]) => {
+      if (!text) {
+        return;
+      }
+
       // TODO(minor): we could be smarter about this , this won't necessarily get the 'right' editor split in more complex scenarios.
       // At minimum we should prefer the editor split adjacent to the PDF preview.
 
@@ -80,6 +85,29 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       if (!editor) {
         vscode.window.showInformationMessage("No other editor split found");
         return;
+      }
+
+      // Get the setting value
+      const includeFileLink = vscode.workspace.getConfiguration('pdf-preview.default').get('includeFileLink', true);
+
+      // If enabled, append the file link to the text
+      if (includeFileLink) {
+        const filename = document.uri.path.split('/').pop(); // Get just the filename
+
+        // Calculate relative path from editor file to PDF file
+        const editorPath = editor.document.uri.path;
+        const pdfPath = document.uri.path;
+
+        // Get the directory of the editor file
+        const editorDir = editorPath.substring(0, editorPath.lastIndexOf('/'));
+
+        // Create relative path
+        let relativePath = path.relative(editorDir, pdfPath);
+        if (!relativePath.startsWith('.')) {
+          relativePath = './' + relativePath;
+        }
+
+        text += `> - [${filename}](${relativePath}#page=${pageNumber})`;
       }
 
       editor.edit(editBuilder => {

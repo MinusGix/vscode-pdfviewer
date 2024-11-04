@@ -101,6 +101,11 @@
             "odd",
             "even"
           ]
+        },
+        "pdf-preview.default.includeFileLink": {
+          "markdownDescription": "Include a link to the source PDF file when transferring notes.",
+          "type": "boolean",
+          "default": true
         }
       }
     },
