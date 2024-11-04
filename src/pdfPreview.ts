@@ -106,6 +106,13 @@ export class PdfPreview extends Disposable {
     this.webviewEditor.webview.postMessage({ type: 'copy-note' });
   }
 
+  /**
+   * Highlight the selection in the PDF preview
+   */
+  public highlight() {
+    this.webviewEditor.webview.postMessage({ type: 'highlight' });
+  }
+
   private reload(): void {
     if (this._previewState !== 'Disposed') {
       this.webviewEditor.webview.postMessage({ type: 'reload' });

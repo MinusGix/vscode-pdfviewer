@@ -141,6 +141,14 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     this.activePreview.copyNoteToEditorSplit();
   }
 
+  public highlight(): void {
+    if (!this.activePreview) {
+      return;
+    }
+
+    this.activePreview.highlight();
+  }
+
   public async saveCustomDocument(
     document: vscode.CustomDocument,
     cancellation: vscode.CancellationToken

@@ -48,6 +48,10 @@
         {
           "command": "pdf.preview.noteTransfer",
           "when": "webviewId == 'pdf.preview'"
+        },
+        {
+          "command": "pdf.preview.highlight",
+          "when": "webviewId == 'pdf.preview'"
         }
       ]
     },
@@ -55,6 +59,11 @@
       {
         "command": "pdf.preview.noteTransfer",
         "title": "Transfer Note to Editor Split",
+        "category": "PDF"
+      },
+      {
+        "command": "pdf.preview.highlight",
+        "title": "Highlight Selection",
         "category": "PDF"
       }
     ],
@@ -113,6 +122,11 @@
       {
         "command": "pdf.preview.noteTransfer",
         "key": "alt+q",
+        "when": "resourceExtname == .pdf"
+      },
+      {
+        "command": "pdf.preview.highlight",
+        "key": "ctrl+h",
         "when": "resourceExtname == .pdf"
       }
     ]

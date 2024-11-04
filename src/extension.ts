@@ -23,6 +23,12 @@ export function activate(context: vscode.ExtensionContext): void {
       provider.transferNoteToEditorSplit();
     })
   );
+
+  // context.subscriptions.push(
+  //   vscode.commands.registerCommand("pdf.preview.highlight", () => {
+  //     provider.highlight();
+  //   })
+  // );
 }
 
 export function deactivate(): void { }
