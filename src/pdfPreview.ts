@@ -160,7 +160,7 @@ export class PdfPreview extends Disposable {
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="google" content="notranslate">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src ${cspSource}; script-src 'unsafe-inline' ${cspSource}; style-src 'unsafe-inline' ${cspSource}; img-src blob: data: ${cspSource};">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src ${cspSource}; script-src 'unsafe-inline' 'unsafe-eval' ${cspSource}; style-src 'unsafe-inline' ${cspSource}; img-src blob: data: ${cspSource};">
 <meta id="pdf-preview-config" data-config="${escapeAttribute(
       JSON.stringify(settings)
     )}">
