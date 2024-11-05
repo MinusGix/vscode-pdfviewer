@@ -90,7 +90,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       }
 
       const citation = this.createPdfCitation(document.uri, editor, pageNumber);
-      const finalText = text + (citation ? '\n' + citation : '');
+      const finalText = text.trim() + (citation ? '\n' + citation : '');
 
       editor.edit(editBuilder => {
         const position = editor.selection.active;
