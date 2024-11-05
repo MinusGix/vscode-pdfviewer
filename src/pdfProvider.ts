@@ -101,13 +101,14 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
         // Get the directory of the editor file
         const editorDir = editorPath.substring(0, editorPath.lastIndexOf('/'));
 
-        // Create relative path
+        // Create relative path and encode it
         let relativePath = path.relative(editorDir, pdfPath);
         if (!relativePath.startsWith('.')) {
           relativePath = './' + relativePath;
         }
+        const encodedPath = encodeURI(relativePath);
 
-        text += `> - [${filename}](${relativePath}#page=${pageNumber})`;
+        text += `> - [${filename}](${encodedPath}#page=${pageNumber})`;
       }
 
       editor.edit(editBuilder => {
