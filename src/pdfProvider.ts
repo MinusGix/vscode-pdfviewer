@@ -191,7 +191,8 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       return '';
     }
 
-    const filename = pdfUri.path.split('/').pop(); // Get just the filename
+    // Get filename without extension using path module
+    const filename = path.parse(pdfUri.fsPath).name;
 
     // Calculate relative path from editor file to PDF file
     const editorPath = editor.document.uri.path;
