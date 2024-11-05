@@ -81,45 +81,25 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       // At minimum we should prefer the editor split adjacent to the PDF preview.
 
       // Get the other editor split, which might not be focused
-      const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() !== this.activePreview.resource.toString());
+      const editor = vscode.window.visibleTextEditors.find(e =>
+        e.document.uri.toString() !== this.activePreview.resource.toString()
+      );
       if (!editor) {
         vscode.window.showInformationMessage("No other editor split found");
         return;
       }
 
-      // Get the setting value
-      const includeFileLink = vscode.workspace.getConfiguration('pdf-preview.default').get('includeFileLink', true);
-
-      // If enabled, append the file link to the text
-      if (includeFileLink) {
-        const filename = document.uri.path.split('/').pop(); // Get just the filename
-
-        // Calculate relative path from editor file to PDF file
-        const editorPath = editor.document.uri.path;
-        const pdfPath = document.uri.path;
-
-        // Get the directory of the editor file
-        const editorDir = editorPath.substring(0, editorPath.lastIndexOf('/'));
-
-        // Create relative path and encode it
-        let relativePath = path.relative(editorDir, pdfPath);
-        if (!relativePath.startsWith('.')) {
-          relativePath = './' + relativePath;
-        }
-        const encodedPath = encodeURI(relativePath);
-
-        text += `> - [${filename}](${encodedPath}#page=${pageNumber})`;
-      }
+      const citation = this.createPdfCitation(document.uri, editor, pageNumber);
+      const finalText = text + (citation ? '\n' + citation : '');
 
       editor.edit(editBuilder => {
         const position = editor.selection.active;
         const line = editor.document.lineAt(position.line);
 
-        // If the current line is not empty, insert a newline first
         if (line.text.trim().length > 0) {
-          editBuilder.insert(position, '\n' + text);
+          editBuilder.insert(position, '\n' + finalText);
         } else {
-          editBuilder.insert(position, text);
+          editBuilder.insert(position, finalText);
         }
       });
     });
@@ -138,7 +118,6 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       return;
     }
 
-    // Now we have to tell the webview to copy the text and send it back to us.
     this.activePreview.copyNoteToEditorSplit();
   }
 
@@ -203,5 +182,61 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
         }
       }
     };
+  }
+
+  private createPdfCitation(pdfUri: vscode.Uri, editor: vscode.TextEditor, pageNumber: number): string {
+    const includeFileLink = vscode.workspace.getConfiguration('pdf-preview.default').get('includeFileLink', true);
+
+    if (!includeFileLink) {
+      return '';
+    }
+
+    const filename = pdfUri.path.split('/').pop(); // Get just the filename
+
+    // Calculate relative path from editor file to PDF file
+    const editorPath = editor.document.uri.path;
+    const pdfPath = pdfUri.path;
+
+    // Get the directory of the editor file
+    const editorDir = editorPath.substring(0, editorPath.lastIndexOf('/'));
+
+    // Create relative path and encode it
+    let relativePath = path.relative(editorDir, pdfPath);
+    if (!relativePath.startsWith('.')) {
+      relativePath = './' + relativePath;
+    }
+    const encodedPath = encodeURI(relativePath);
+
+    return `> - [${filename}](${encodedPath}#page=${pageNumber})`;
+  }
+
+  public insertCitation(): void {
+    if (!this.activePreview) {
+      return;
+    }
+
+    const editor = vscode.window.visibleTextEditors.find(e =>
+      e.document.uri.toString() !== this.activePreview.resource.toString()
+    );
+
+    if (!editor) {
+      vscode.window.showInformationMessage("No other editor split found");
+      return;
+    }
+
+    this.activePreview.getCurrentPage().then(pageNumber => {
+      const citation = this.createPdfCitation(this.activePreview.resource, editor, pageNumber);
+
+      editor.edit(editBuilder => {
+        const position = editor.selection.active;
+        const line = editor.document.lineAt(position.line);
+
+        if (line.text.trim().length > 0) {
+          editBuilder.insert(position, '\n' + citation);
+        } else {
+          editBuilder.insert(position, citation);
+        }
+      });
+    });
   }
 }

@@ -186,4 +186,16 @@ export class PdfPreview extends Disposable {
 
     return head + body + tail;
   }
+
+  public async getCurrentPage(): Promise<number> {
+    return new Promise((resolve) => {
+      const listener = this.webviewEditor.webview.onDidReceiveMessage(e => {
+        if (e.type === 'current-page') {
+          listener.dispose();
+          resolve(e.pageNumber);
+        }
+      });
+      this.webviewEditor.webview.postMessage({ type: 'get-current-page' });
+    });
+  }
 }

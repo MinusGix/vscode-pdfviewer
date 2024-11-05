@@ -24,6 +24,12 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand("pdf.preview.insertCitation", () => {
+      provider.insertCitation();
+    })
+  );
+
   // context.subscriptions.push(
   //   vscode.commands.registerCommand("pdf.preview.highlight", () => {
   //     provider.highlight();
