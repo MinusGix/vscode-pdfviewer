@@ -77,9 +77,6 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
         return;
       }
 
-      // TODO(minor): we could be smarter about this , this won't necessarily get the 'right' editor split in more complex scenarios.
-      // At minimum we should prefer the editor split adjacent to the PDF preview.
-
       // Get the other editor split, which might not be focused
       const editor = vscode.window.visibleTextEditors.find(e =>
         e.document.uri.toString() !== this.activePreview.resource.toString()
@@ -89,18 +86,19 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
         return;
       }
 
-      const citation = this.createPdfCitation(document.uri, editor, pageNumber);
-      const finalText = text.trim() + (citation ? '\n' + citation : '');
+      this.createPdfCitation(document.uri, editor, pageNumber).then(citation => {
+        const finalText = text.trim() + (citation ? '\n' + citation : '');
 
-      editor.edit(editBuilder => {
-        const position = editor.selection.active;
-        const line = editor.document.lineAt(position.line);
+        editor.edit(editBuilder => {
+          const position = editor.selection.active;
+          const line = editor.document.lineAt(position.line);
 
-        if (line.text.trim().length > 0) {
-          editBuilder.insert(position, '\n' + finalText);
-        } else {
-          editBuilder.insert(position, finalText);
-        }
+          if (line.text.trim().length > 0) {
+            editBuilder.insert(position, '\n' + finalText);
+          } else {
+            editBuilder.insert(position, finalText);
+          }
+        });
       });
     });
   }
@@ -184,15 +182,19 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     };
   }
 
-  private createPdfCitation(pdfUri: vscode.Uri, editor: vscode.TextEditor, pageNumber: number): string {
+  private async createPdfCitation(pdfUri: vscode.Uri, editor: vscode.TextEditor, pageNumber: number): Promise<string> {
     const includeFileLink = vscode.workspace.getConfiguration('pdf-preview.default').get('includeFileLink', true);
 
     if (!includeFileLink) {
       return '';
     }
 
-    // Get filename without extension using path module
-    const filename = path.parse(pdfUri.fsPath).name;
+    // Get the preview instance for this PDF
+    const preview = Array.from(this._previews).find(p => p.resource.toString() === pdfUri.toString());
+
+    // Get title or fallback to filename
+    const title = preview ? await preview.getPdfTitle() : null;
+    const displayName = title || path.parse(pdfUri.fsPath).name;
 
     // Calculate relative path from editor file to PDF file
     const editorPath = editor.document.uri.path;
@@ -208,7 +210,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     }
     const encodedPath = encodeURI(relativePath);
 
-    return `> - [${filename}](${encodedPath}#page=${pageNumber})`;
+    return `> - [${displayName}](${encodedPath}#page=${pageNumber})`;
   }
 
   public insertCitation(): void {
@@ -226,17 +228,17 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     }
 
     this.activePreview.getCurrentPage().then(pageNumber => {
-      const citation = this.createPdfCitation(this.activePreview.resource, editor, pageNumber);
+      this.createPdfCitation(this.activePreview.resource, editor, pageNumber).then(citation => {
+        editor.edit(editBuilder => {
+          const position = editor.selection.active;
+          const line = editor.document.lineAt(position.line);
 
-      editor.edit(editBuilder => {
-        const position = editor.selection.active;
-        const line = editor.document.lineAt(position.line);
-
-        if (line.text.trim().length > 0) {
-          editBuilder.insert(position, '\n' + citation);
-        } else {
-          editBuilder.insert(position, citation);
-        }
+          if (line.text.trim().length > 0) {
+            editBuilder.insert(position, '\n' + citation);
+          } else {
+            editBuilder.insert(position, citation);
+          }
+        });
       });
     });
   }

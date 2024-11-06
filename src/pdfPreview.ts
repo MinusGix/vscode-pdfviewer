@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { Disposable } from './disposable';
+import * as child_process from 'child_process';
 
 function escapeAttribute(value: string | vscode.Uri): string {
   return value.toString().replace(/"/g, '&quot;');
@@ -21,6 +22,8 @@ export class PdfPreview extends Disposable {
   // [text, pageNumber]
   private _onCopyNote = new vscode.EventEmitter<[string, number]>();
   public readonly onCopyNote = this._onCopyNote.event;
+
+  private _cachedTitle: string | null | undefined = undefined;
 
   constructor(
     private readonly extensionRoot: vscode.Uri,
@@ -196,6 +199,45 @@ export class PdfPreview extends Disposable {
         }
       });
       this.webviewEditor.webview.postMessage({ type: 'get-current-page' });
+    });
+  }
+
+  public async getPdfTitle(): Promise<string | null> {
+    if (this._cachedTitle !== undefined) {
+      return this._cachedTitle;
+    }
+
+    return new Promise((resolve) => {
+      // TODO: is this properly escaped? Probably not.
+      // Get the path to the PDF file and escape it properly
+      const pdfPath = this.resource.fsPath.replace(/"/g, '\\"');
+
+      // Max2 works better for arxiv papers.
+      child_process.exec(`pdftitle -a max2 -t -p "${pdfPath}"`, {
+        timeout: 10000 // Add timeout of 10 seconds
+      }, (error, stdout, stderr) => {
+        if (error) {
+          // Check specifically for command not found error
+          if ('code' in error && error.code === 127) {
+            // TODO: only check this once overall, so we aren't checking it for each unique pdf file!
+            // (of course that'd force the user to restart if they install it, but that's fine.)
+            vscode.window.showErrorMessage('pdftitle is not installed. Please install it using pip: pip install pdftitle');
+          }
+          this._cachedTitle = null;
+          resolve(null);
+          return;
+        }
+
+        const title = stdout.trim();
+        if (!title || title.length < 3) {
+          this._cachedTitle = null;
+          resolve(null);
+          return;
+        }
+
+        this._cachedTitle = title;
+        resolve(title);
+      });
     });
   }
 }

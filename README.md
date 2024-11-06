@@ -4,6 +4,8 @@ Display pdf in VSCode.
 
 ![screenshot](https://user-images.githubusercontent.com/3643499/84454816-98fcd600-ac96-11ea-822c-3ae1e1599a13.gif)
 
+Requires [metebalci/pdftitle](https://github.com/metebalci/pdftitle/tree/master) for extracting titles from PDFs for quotations.
+
 ## Contribute
 
 ### Upgrade PDF.js
