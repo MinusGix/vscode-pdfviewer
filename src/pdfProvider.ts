@@ -72,12 +72,18 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       vscode.workspace.fs.writeFile(document.uri, data);
     });
 
-    preview.onCopyNote(([text, pageNumber]) => {
+    preview.onCopyNote(([text, pageNumber]: [string | undefined, number]) => {
+      // Check for undefined first
       if (!text) {
         return;
       }
 
-      // Get the other editor split, which might not be focused
+      // Then trim and check if empty
+      const trimmedText = text.trim();
+      if (!trimmedText) {
+        return;
+      }
+
       const editor = vscode.window.visibleTextEditors.find(e =>
         e.document.uri.toString() !== this.activePreview.resource.toString()
       );
@@ -87,7 +93,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       }
 
       this.createPdfCitation(document.uri, editor, pageNumber).then(citation => {
-        const finalText = text.trim() + (citation ? '\n' + citation : '');
+        const finalText = trimmedText + (citation ? '\n' + citation : '');
 
         editor.edit(editBuilder => {
           const position = editor.selection.active;
@@ -229,6 +235,11 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
 
     this.activePreview.getCurrentPage().then(pageNumber => {
       this.createPdfCitation(this.activePreview.resource, editor, pageNumber).then(citation => {
+        // Only insert if we have a citation
+        if (!citation) {
+          return;
+        }
+
         editor.edit(editBuilder => {
           const position = editor.selection.active;
           const line = editor.document.lineAt(position.line);

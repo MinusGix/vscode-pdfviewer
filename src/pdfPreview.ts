@@ -20,7 +20,7 @@ export class PdfPreview extends Disposable {
   public readonly onDoSave = this._onDoSave.event;
 
   // [text, pageNumber]
-  private _onCopyNote = new vscode.EventEmitter<[string, number]>();
+  private _onCopyNote = new vscode.EventEmitter<[string | undefined, number]>();
   public readonly onCopyNote = this._onCopyNote.event;
 
   private _cachedTitle: string | null | undefined = undefined;
