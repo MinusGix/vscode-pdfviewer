@@ -19,19 +19,19 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("pdf.preview.noteTransfer", () => {
+    vscode.commands.registerCommand("lattice.preview.noteTransfer", () => {
       provider.transferNoteToEditorSplit();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("pdf.preview.insertCitation", () => {
+    vscode.commands.registerCommand("lattice.preview.insertCitation", () => {
       provider.insertCitation();
     })
   );
 
   // context.subscriptions.push(
-  //   vscode.commands.registerCommand("pdf.preview.highlight", () => {
+  //   vscode.commands.registerCommand("lattice.preview.highlight", () => {
   //     provider.highlight();
   //   })
   // );

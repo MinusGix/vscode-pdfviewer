@@ -1,9 +1,9 @@
 {
-  "name": "pdf",
-  "displayName": "vscode-pdf",
-  "description": "Display pdf file in VSCode.",
-  "version": "1.2.2",
-  "publisher": "tomoki1207",
+  "name": "lattice",
+  "displayName": "Lattice",
+  "description": "A note-taking helper. PDF-viewer, links, archiving, quotations, and more.",
+  "version": "1.0.0",
+  "publisher": "minusgix",
   "engines": {
     "vscode": "^1.57.0"
   },
@@ -12,18 +12,22 @@
   ],
   "keywords": [
     "pdf",
-    "viewer"
+    "viewer",
+    "note-taking",
+    "links",
+    "archiving",
+    "quotations"
   ],
-  "icon": "vscode-pdf.png",
+  "icon": "lattice.jpg",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tomoki1207/vscode-pdfviewer.git"
+    "url": "https://github.com/minusgix/lattice.git"
   },
   "bugs": {
-    "url": "https://github.com/tomoki1207/vscode-pdfviewer/issues"
+    "url": "https://github.com/minusgix/lattice/issues"
   },
   "activationEvents": [
-    "onCustomEditor:pdf.preview"
+    "onCustomEditor:lattice.preview"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -34,8 +38,8 @@
     },
     "customEditors": [
       {
-        "viewType": "pdf.preview",
-        "displayName": "Pdf Preview",
+        "viewType": "lattice.preview",
+        "displayName": "Lattice Preview",
         "selector": [
           {
             "filenamePattern": "*.pdf"
@@ -46,38 +50,38 @@
     "menus": {
       "webview/context": [
         {
-          "command": "pdf.preview.noteTransfer",
-          "when": "webviewId == 'pdf.preview'"
+          "command": "lattice.preview.noteTransfer",
+          "when": "webviewId == 'lattice.preview'"
         },
         {
-          "command": "pdf.preview.highlight",
-          "when": "webviewId == 'pdf.preview'"
+          "command": "lattice.preview.highlight",
+          "when": "webviewId == 'lattice.preview'"
         }
       ]
     },
     "commands": [
       {
-        "command": "pdf.preview.noteTransfer",
+        "command": "lattice.preview.noteTransfer",
         "title": "Transfer Note to Editor Split",
-        "category": "PDF"
+        "category": "Lattice"
       },
       {
-        "command": "pdf.preview.highlight",
+        "command": "lattice.preview.highlight",
         "title": "Highlight Selection",
-        "category": "PDF"
+        "category": "Lattice"
       },
       {
-        "command": "pdf.preview.insertCitation",
-        "title": "Insert PDF Citation",
-        "category": "PDF"
+        "command": "lattice.preview.insertCitation",
+        "title": "Insert Document Citation",
+        "category": "Lattice"
       }
     ],
     "configuration": {
       "type": "object",
       "title": "PDF Preview",
       "properties": {
-        "pdf-preview.default.cursor": {
-          "markdownDescription": "The default cursor tool for preview.",
+        "lattice-preview.default.pdf.cursor": {
+          "markdownDescription": "The default cursor tool for PDF preview.",
           "type": "string",
           "default": "select",
           "enum": [
@@ -85,19 +89,19 @@
             "hand"
           ]
         },
-        "pdf-preview.default.scale": {
-          "markdownDescription": "The default zoom level for preview. Allowed values are `auto`, `page-actual`, `page-fit`, `page-width`, and 1-based scale values. (`1.0` means 100%)",
+        "lattice-preview.default.pdf.scale": {
+          "markdownDescription": "The default zoom level for PDF preview. Allowed values are `auto`, `page-actual`, `page-fit`, `page-width`, and 1-based scale values. (`1.0` means 100%)",
           "type": "string",
           "default": "auto",
           "pattern": "^(\\d+(?:\\.\\d+)?|auto|page-actual|page-fit|page-width)$"
         },
-        "pdf-preview.default.sidebar": {
-          "markdownDescription": "Show the sidebar on load. The default visibility of sidebar for preview.",
+        "lattice-preview.default.pdf.sidebar": {
+          "markdownDescription": "Show the sidebar on load. The default visibility of sidebar for PDF preview.",
           "type": "boolean",
           "default": false
         },
-        "pdf-preview.default.scrollMode": {
-          "markdownDescription": "The default scroll mode for preview.",
+        "lattice-preview.default.pdf.scrollMode": {
+          "markdownDescription": "The default scroll mode for PDF preview.",
           "type": "string",
           "default": "vertical",
           "enum": [
@@ -106,8 +110,8 @@
             "wrapped"
           ]
         },
-        "pdf-preview.default.spreadMode": {
-          "markdownDescription": "The default spread mode for preview.",
+        "lattice-preview.default.pdf.spreadMode": {
+          "markdownDescription": "The default spread mode for PDF preview.",
           "type": "string",
           "default": "none",
           "enum": [
@@ -116,8 +120,8 @@
             "even"
           ]
         },
-        "pdf-preview.default.includeFileLink": {
-          "markdownDescription": "Include a link to the source PDF file when transferring notes.",
+        "lattice-preview.default.includeFileLink": {
+          "markdownDescription": "Include a link to the source file when transferring notes.",
           "type": "boolean",
           "default": true
         }
@@ -125,12 +129,12 @@
     },
     "keybindings": [
       {
-        "command": "pdf.preview.noteTransfer",
+        "command": "lattice.preview.noteTransfer",
         "key": "alt+q",
         "when": "resourceExtname == .pdf"
       },
       {
-        "command": "pdf.preview.highlight",
+        "command": "lattice.preview.highlight",
         "key": "ctrl+h",
         "when": "resourceExtname == .pdf"
       }

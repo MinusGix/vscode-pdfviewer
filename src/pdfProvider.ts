@@ -12,7 +12,7 @@ import { PdfPreview } from './pdfPreview';
 // TODO: support backups
 
 export class PdfCustomProvider implements vscode.CustomEditorProvider {
-  public static readonly viewType = 'pdf.preview';
+  public static readonly viewType = 'lattice.preview';
 
   private readonly _previews = new Set<PdfPreview>();
   private _activePreview: PdfPreview | undefined;

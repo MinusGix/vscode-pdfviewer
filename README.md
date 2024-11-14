@@ -1,6 +1,8 @@
-# pdf
+# lattice
 
-Display pdf in VSCode.
+A note-taking helper. PDF-viewer, links, archiving, quotations, and more.
+
+Based off [vscode-pdf](https://github.com/tomoki1207/vscode-pdfviewer) and extended.
 
 ![screenshot](https://user-images.githubusercontent.com/3643499/84454816-98fcd600-ac96-11ea-822c-3ae1e1599a13.gif)
 
