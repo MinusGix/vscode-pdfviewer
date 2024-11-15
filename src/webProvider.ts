@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { TextDecoder } from 'util';
+import { TextDecoder, TextEncoder } from 'util';
 import * as https from 'https';
 import * as http from 'http';
 import * as path from 'path';
@@ -107,8 +107,10 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         document: vscode.CustomDocument,
         cancellation: vscode.CancellationToken
     ): Promise<void> {
-        // URL files are read-only in this implementation
-        return;
+        const textDocument = await vscode.workspace.openTextDocument(document.uri);
+        const content = textDocument.getText();
+        const encoder = new TextEncoder();
+        await vscode.workspace.fs.writeFile(document.uri, encoder.encode(content));
     }
 
     public async saveCustomDocumentAs(

@@ -1,19 +1,35 @@
 import * as vscode from 'vscode';
 import { PdfCustomProvider } from './pdfProvider';
 import { WebPreviewProvider } from './webProvider';
+import { TextEncoder } from 'util';
 
 export async function openUrlInWebview(url: string) {
-  // Create a temporary URI with a random name
-  const tempUri = vscode.Uri.parse(`untitled:Untitled-${Date.now()}.url`);
+  try {
+    // First, show save dialog to get where the user wants to save the URL file
+    const urlObj = new URL(url);
+    const sanitizedHostname = urlObj.hostname.replace(/[^a-zA-Z0-9]/g, '-');
+    const suggestedName = `${sanitizedHostname}-${Date.now()}.url`;
 
-  // Create and show the document
-  const doc = await vscode.workspace.openTextDocument(tempUri);
-  const edit = new vscode.WorkspaceEdit();
-  edit.insert(tempUri, new vscode.Position(0, 0), url);
-  await vscode.workspace.applyEdit(edit);
+    const saveUri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(suggestedName),
+      filters: {
+        'URL Files': ['url']
+      }
+    });
 
-  // Open it with our custom editor
-  await vscode.commands.executeCommand('vscode.openWith', tempUri, WebPreviewProvider.viewType);
+    if (!saveUri) {
+      return; // User cancelled
+    }
+
+    // Write the URL to the file
+    const encoder = new TextEncoder();
+    await vscode.workspace.fs.writeFile(saveUri, encoder.encode(url));
+
+    // Open it with our custom editor
+    await vscode.commands.executeCommand('vscode.openWith', saveUri, WebPreviewProvider.viewType);
+  } catch (error) {
+    vscode.window.showErrorMessage(`Failed to open URL: ${error.message}`);
+  }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
