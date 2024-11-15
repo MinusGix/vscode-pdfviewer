@@ -71,7 +71,7 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
             try {
                 new URL(url);
                 const html = await this.fetchWebpage(url);
-                webviewPanel.webview.html = this.getWebviewContent(html, url);
+                webviewPanel.webview.html = await this.getWebviewContent(html, url);
             } catch (error) {
                 webviewPanel.webview.html = this.getErrorHtml('Invalid URL or failed to fetch webpage');
             }
@@ -131,7 +131,15 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         };
     }
 
-    private getWebviewContent(html: string, baseUrl: string): string {
+    private async getWebviewContent(html: string, baseUrl: string): Promise<string> {
+        const webview = this._activeWebview!;
+        const cspSource = webview.cspSource;
+
+        // Read the quotation script without escaping
+        const scriptPath = vscode.Uri.joinPath(this.extensionRoot, 'src', 'webview', 'quotation.js');
+        const scriptContent = await vscode.workspace.fs.readFile(scriptPath);
+        const scriptText = new TextDecoder().decode(scriptContent);
+
         return `
             <!DOCTYPE html>
             <html lang="en">
@@ -167,21 +175,7 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
                     }
                 </style>
                 <script>
-                    const vscode = acquireVsCodeApi();
-                    
-                    // Listen for messages from the extension
-                    window.addEventListener('message', event => {
-                        const message = event.data;
-                        switch (message.type) {
-                            case 'get-selection':
-                                const selection = document.getSelection();
-                                vscode.postMessage({
-                                    type: 'selection',
-                                    text: selection ? selection.toString() : ''
-                                });
-                                break;
-                        }
-                    });
+                    ${scriptText}
                 </script>
             </head>
             <body>
@@ -237,12 +231,12 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
             return;
         }
 
-        // Get the selected text from the webview
-        const selectedText = await new Promise<string>((resolve) => {
+        // Get the selected text and links from the webview
+        const selection = await new Promise<{ markdown: string }>((resolve) => {
             const listener = this._activeWebview!.onDidReceiveMessage(e => {
                 if (e.type === 'selection') {
                     listener.dispose();
-                    resolve(e.text);
+                    resolve(e);
                 }
             });
             this._activeWebview!.postMessage({ type: 'get-selection' });
@@ -253,7 +247,7 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         const url = new TextDecoder().decode(fileContent).trim();
 
         try {
-            new URL(url); // Validate URL
+            new URL(url);
 
             // Calculate relative path from editor file to URL file
             const editorPath = editor.document.uri.path;
@@ -268,8 +262,8 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
 
             // Format the citation with the selected text if any
             let citation = '';
-            if (selectedText) {
-                citation = `> ${selectedText}\n`;
+            if (selection.markdown) {
+                citation = `> ${selection.markdown}\n`;
             }
             citation += `> - [${url}](${encodedPath})`;
 

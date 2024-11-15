@@ -197,5 +197,9 @@
   },
   "extensionKind": [
     "ui"
+  ],
+  "files": [
+    "out/**/*",
+    "src/webview/**/*"
   ]
 }
