@@ -175,6 +175,7 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
                     }
                 </style>
                 <script>
+                    window.pageBaseUrl = "${baseUrl}";
                     ${scriptText}
                 </script>
             </head>
@@ -263,7 +264,10 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
             // Format the citation with the selected text if any
             let citation = '';
             if (selection.markdown) {
-                citation = `> ${selection.markdown}\n`;
+                citation = selection.markdown
+                    .split('\n')
+                    .map(line => `> ${line}`)
+                    .join('\n') + '\n';
             }
             citation += `> - [${url}](${encodedPath})`;
 
