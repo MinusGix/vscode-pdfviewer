@@ -105,8 +105,17 @@ export class PdfPreview extends Disposable {
     this.webviewEditor.webview.postMessage({ type: 'save', destination });
   }
 
-  public copyNoteToEditorSplit() {
-    this.webviewEditor.webview.postMessage({ type: 'copy-note' });
+  public async copyNoteToEditorSplit(): Promise<void> {
+    return new Promise((resolve) => {
+      const listener = this.webviewEditor.webview.onDidReceiveMessage(e => {
+        if (e.type === 'copy-note') {
+          listener.dispose();
+          this._onCopyNote.fire([e.text, e.pageNumber]);
+          resolve();
+        }
+      });
+      this.webviewEditor.webview.postMessage({ type: 'copy-note' });
+    });
   }
 
   /**

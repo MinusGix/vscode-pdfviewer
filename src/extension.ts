@@ -1,40 +1,55 @@
 import * as vscode from 'vscode';
 import { PdfCustomProvider } from './pdfProvider';
+import { WebPreviewProvider } from './webProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
+  console.log('Activating Lattice extension');
+
   const extensionRoot = vscode.Uri.file(context.extensionPath);
-  // Register our custom editor provider
-  const provider = new PdfCustomProvider(extensionRoot);
+
+  // Register Web preview provider
+  const webProvider = new WebPreviewProvider(extensionRoot);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
-      PdfCustomProvider.viewType,
-      provider,
+      WebPreviewProvider.viewType,
+      webProvider,
       {
         webviewOptions: {
-          enableFindWidget: false, // default
+          enableFindWidget: true,
           retainContextWhenHidden: true,
         },
       }
     )
   );
 
+  // Register PDF preview provider
+  const pdfProvider = new PdfCustomProvider(extensionRoot);
   context.subscriptions.push(
-    vscode.commands.registerCommand("lattice.preview.noteTransfer", () => {
-      provider.transferNoteToEditorSplit();
+    vscode.window.registerCustomEditorProvider(
+      PdfCustomProvider.viewType,
+      pdfProvider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true,
+        },
+      }
+    )
+  );
+
+  // Add command registrations
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.webPreview.insertQuotation', () => {
+      webProvider.insertQuotation();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("lattice.preview.insertCitation", () => {
-      provider.insertCitation();
+    vscode.commands.registerCommand('lattice.preview.insertQuotation', () => {
+      pdfProvider.insertQuotation();
     })
   );
 
-  // context.subscriptions.push(
-  //   vscode.commands.registerCommand("lattice.preview.highlight", () => {
-  //     provider.highlight();
-  //   })
-  // );
+  console.log('Lattice extension activated');
 }
 
 export function deactivate(): void { }

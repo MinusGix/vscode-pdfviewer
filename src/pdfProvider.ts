@@ -219,7 +219,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     return `> - [${displayName}](${encodedPath}#page=${pageNumber})`;
   }
 
-  public insertCitation(): void {
+  public insertQuotation(): void {
     if (!this.activePreview) {
       return;
     }
@@ -233,24 +233,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       return;
     }
 
-    this.activePreview.getCurrentPage().then(pageNumber => {
-      this.createPdfCitation(this.activePreview.resource, editor, pageNumber).then(citation => {
-        // Only insert if we have a citation
-        if (!citation) {
-          return;
-        }
-
-        editor.edit(editBuilder => {
-          const position = editor.selection.active;
-          const line = editor.document.lineAt(position.line);
-
-          if (line.text.trim().length > 0) {
-            editBuilder.insert(position, '\n' + citation);
-          } else {
-            editBuilder.insert(position, citation);
-          }
-        });
-      });
-    });
+    // Request the selected text and page number from the preview
+    this.activePreview.copyNoteToEditorSplit();
   }
 }

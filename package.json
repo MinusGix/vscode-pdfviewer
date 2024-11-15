@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "publisher": "minusgix",
   "engines": {
-    "vscode": "^1.57.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "Programming Languages"
@@ -27,7 +27,8 @@
     "url": "https://github.com/minusgix/lattice/issues"
   },
   "activationEvents": [
-    "onCustomEditor:lattice.preview"
+    "onCustomEditor:lattice.preview",
+    "onCustomEditor:lattice.webPreview"
   ],
   "main": "./out/src/extension",
   "contributes": {
@@ -45,17 +46,33 @@
             "filenamePattern": "*.pdf"
           }
         ]
+      },
+      {
+        "viewType": "lattice.webPreview",
+        "displayName": "Lattice Web Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.url"
+          }
+        ]
       }
     ],
     "menus": {
       "webview/context": [
         {
-          "command": "lattice.preview.noteTransfer",
-          "when": "webviewId == 'lattice.preview'"
+          "command": "lattice.preview.insertQuotation",
+          "when": "webviewId == 'lattice.preview'",
+          "group": "navigation"
         },
         {
-          "command": "lattice.preview.highlight",
-          "when": "webviewId == 'lattice.preview'"
+          "command": "lattice.webPreview.copy",
+          "when": "webviewId == 'lattice.webPreview'",
+          "group": "navigation"
+        },
+        {
+          "command": "lattice.webPreview.insertQuotation",
+          "when": "webviewId == 'lattice.webPreview'",
+          "group": "navigation"
         }
       ]
     },
@@ -71,8 +88,19 @@
         "category": "Lattice"
       },
       {
-        "command": "lattice.preview.insertCitation",
-        "title": "Insert Document Citation",
+        "command": "lattice.preview.insertQuotation",
+        "title": "Insert PDF Quotation",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.webPreview.copy",
+        "title": "Copy Selection",
+        "category": "Lattice",
+        "enablement": "webviewId == 'lattice.webPreview'"
+      },
+      {
+        "command": "lattice.webPreview.insertQuotation",
+        "title": "Insert Web Quotation",
         "category": "Lattice"
       }
     ],
