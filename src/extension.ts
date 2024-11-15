@@ -2,6 +2,20 @@ import * as vscode from 'vscode';
 import { PdfCustomProvider } from './pdfProvider';
 import { WebPreviewProvider } from './webProvider';
 
+async function openUrlInWebview(url: string) {
+  // Create a temporary URI with a random name
+  const tempUri = vscode.Uri.parse(`untitled:Untitled-${Date.now()}.url`);
+
+  // Create and show the document
+  const doc = await vscode.workspace.openTextDocument(tempUri);
+  const edit = new vscode.WorkspaceEdit();
+  edit.insert(tempUri, new vscode.Position(0, 0), url);
+  await vscode.workspace.applyEdit(edit);
+
+  // Open it with our custom editor
+  await vscode.commands.executeCommand('vscode.openWith', tempUri, WebPreviewProvider.viewType);
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   console.log('Activating Lattice extension');
 
@@ -46,6 +60,28 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('lattice.preview.insertQuotation', () => {
       pdfProvider.insertQuotation();
+    })
+  );
+
+  // Add the new command registration
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.openUrl', async () => {
+      const url = await vscode.window.showInputBox({
+        prompt: 'Enter URL to open',
+        placeHolder: 'https://example.com',
+        validateInput: (text) => {
+          try {
+            new URL(text);
+            return null;
+          } catch {
+            return 'Please enter a valid URL';
+          }
+        }
+      });
+
+      if (url) {
+        await openUrlInWebview(url);
+      }
     })
   );
 

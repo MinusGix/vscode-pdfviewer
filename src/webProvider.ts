@@ -65,18 +65,26 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         });
 
         try {
-            const fileContent = await vscode.workspace.fs.readFile(document.uri);
-            const url = new TextDecoder().decode(fileContent).trim();
+            let url: string;
+            if (document.uri.scheme === 'untitled') {
+                // For untitled documents, get content from the document
+                const textDocument = await vscode.workspace.openTextDocument(document.uri);
+                url = textDocument.getText().trim();
+            } else {
+                // For saved files, read from filesystem
+                const fileContent = await vscode.workspace.fs.readFile(document.uri);
+                url = new TextDecoder().decode(fileContent).trim();
+            }
 
             try {
                 new URL(url);
                 const html = await this.fetchWebpage(url);
                 webviewPanel.webview.html = await this.getWebviewContent(html, url);
             } catch (error) {
-                webviewPanel.webview.html = this.getErrorHtml('Invalid URL or failed to fetch webpage');
+                webviewPanel.webview.html = this.getErrorHtml(`Invalid URL or failed to fetch webpage: ${url}`);
             }
         } catch (error) {
-            webviewPanel.webview.html = this.getErrorHtml('Error loading URL file');
+            webviewPanel.webview.html = this.getErrorHtml('Error loading URL');
         }
     }
 

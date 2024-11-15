@@ -102,6 +102,11 @@
         "command": "lattice.webPreview.insertQuotation",
         "title": "Insert Web Quotation",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.openUrl",
+        "title": "Open URL",
+        "category": "Lattice"
       }
     ],
     "configuration": {
