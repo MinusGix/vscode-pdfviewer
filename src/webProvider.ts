@@ -3,6 +3,7 @@ import { TextDecoder } from 'util';
 import * as https from 'https';
 import * as http from 'http';
 import * as path from 'path';
+import * as fs from 'fs';
 import { openUrlInWebview } from './extension';
 
 export class WebPreviewProvider implements vscode.CustomEditorProvider {
@@ -148,13 +149,8 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
     }
 
     private async getWebviewContent(html: string, baseUrl: string): Promise<string> {
-        const webview = this._activeWebview!;
-        const cspSource = webview.cspSource;
-
-        // Read the quotation script without escaping
-        const scriptPath = vscode.Uri.joinPath(this.extensionRoot, 'src', 'webview', 'quotation.js');
-        const scriptContent = await vscode.workspace.fs.readFile(scriptPath);
-        const scriptText = new TextDecoder().decode(scriptContent);
+        const scriptPath = path.join(this.extensionRoot.path, 'lib', 'quotation.js');
+        const scriptText = fs.readFileSync(scriptPath, 'utf8');
 
         return `
             <!DOCTYPE html>
