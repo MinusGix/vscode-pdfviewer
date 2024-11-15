@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { PdfCustomProvider } from './pdfProvider';
 import { WebPreviewProvider } from './webProvider';
 
-async function openUrlInWebview(url: string) {
+export async function openUrlInWebview(url: string) {
   // Create a temporary URI with a random name
   const tempUri = vscode.Uri.parse(`untitled:Untitled-${Date.now()}.url`);
 

@@ -3,6 +3,7 @@ import { TextDecoder } from 'util';
 import * as https from 'https';
 import * as http from 'http';
 import * as path from 'path';
+import { openUrlInWebview } from './extension';
 
 export class WebPreviewProvider implements vscode.CustomEditorProvider {
     public static readonly viewType = 'lattice.webPreview';
@@ -56,6 +57,13 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
             enableScripts: true,
             localResourceRoots: [],
         };
+
+        // Add message handler for link clicks
+        webviewPanel.webview.onDidReceiveMessage(async message => {
+            if (message.type === 'link-click') {
+                await openUrlInWebview(message.url);
+            }
+        });
 
         webviewPanel.onDidDispose(() => {
             if (this._activeDocument === document) {

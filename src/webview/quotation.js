@@ -11,6 +11,24 @@ window.addEventListener('message', event => {
     }
 });
 
+document.addEventListener('click', (e) => {
+    // Check if the clicked element is a link
+    let target = e.target;
+    while (target && target.tagName !== 'A') {
+        target = target.parentElement;
+    }
+
+    if (target && target.href) {
+        e.preventDefault();
+        e.stopPropagation();
+        vscode.postMessage({
+            type: 'link-click',
+            url: target.href
+        });
+        return false;
+    }
+}, true);
+
 function resolveUrl(url) {
     try {
         // Try to create a full URL - if it succeeds, it's already absolute
@@ -143,4 +161,4 @@ function convertToMarkdown(node, result = '', options = { inParagraph: false }) 
         }
     }
     return result;
-} 
+}
