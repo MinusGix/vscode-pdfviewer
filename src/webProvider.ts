@@ -232,6 +232,41 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         `;
     }
 
+    private async createWebCitation(url: string, editor: vscode.TextEditor): Promise<string | null> {
+        try {
+            new URL(url); // Validate URL
+
+            // Calculate relative path from editor file to URL file
+            const editorPath = editor.document.uri.path;
+            const urlFilePath = this._activeDocument!.uri.path;
+            const editorDir = editorPath.substring(0, editorPath.lastIndexOf('/'));
+
+            let relativePath = path.relative(editorDir, urlFilePath);
+            if (!relativePath.startsWith('.')) {
+                relativePath = './' + relativePath;
+            }
+            const encodedPath = encodeURI(relativePath);
+
+            return `> - [${url}](${encodedPath})`;
+        } catch (error) {
+            vscode.window.showErrorMessage('Invalid URL in file');
+            return null;
+        }
+    }
+
+    private async insertIntoEditor(editor: vscode.TextEditor, text: string): Promise<void> {
+        editor.edit(editBuilder => {
+            const position = editor.selection.active;
+            const line = editor.document.lineAt(position.line);
+
+            if (line.text.trim().length > 0) {
+                editBuilder.insert(position, '\n' + text);
+            } else {
+                editBuilder.insert(position, text);
+            }
+        });
+    }
+
     public async insertQuotation(): Promise<void> {
         if (!this._activeWebview || !this._activeDocument) {
             return;
@@ -257,47 +292,47 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
             this._activeWebview!.postMessage({ type: 'get-selection' });
         });
 
-        // Create citation with current URL
+        // Get current URL from the document
         const fileContent = await vscode.workspace.fs.readFile(this._activeDocument.uri);
         const url = new TextDecoder().decode(fileContent).trim();
 
-        try {
-            new URL(url);
+        // Format the citation with the selected text if any
+        let citation = '';
+        if (selection.markdown) {
+            citation = selection.markdown
+                .split('\n')
+                .map(line => `> ${line}`)
+                .join('\n') + '\n';
+        }
 
-            // Calculate relative path from editor file to URL file
-            const editorPath = editor.document.uri.path;
-            const urlFilePath = this._activeDocument.uri.path;
-            const editorDir = editorPath.substring(0, editorPath.lastIndexOf('/'));
+        const urlCitation = await this.createWebCitation(url, editor);
+        if (urlCitation) {
+            citation += urlCitation;
+            await this.insertIntoEditor(editor, citation);
+        }
+    }
 
-            let relativePath = path.relative(editorDir, urlFilePath);
-            if (!relativePath.startsWith('.')) {
-                relativePath = './' + relativePath;
-            }
-            const encodedPath = encodeURI(relativePath);
+    public async insertCitation(): Promise<void> {
+        if (!this._activeWebview || !this._activeDocument) {
+            return;
+        }
 
-            // Format the citation with the selected text if any
-            let citation = '';
-            if (selection.markdown) {
-                citation = selection.markdown
-                    .split('\n')
-                    .map(line => `> ${line}`)
-                    .join('\n') + '\n';
-            }
-            citation += `> - [${url}](${encodedPath})`;
+        const editor = vscode.window.visibleTextEditors.find(e =>
+            e.document.uri.toString() !== this._activeDocument!.uri.toString()
+        );
 
-            editor.edit(editBuilder => {
-                const position = editor.selection.active;
-                const line = editor.document.lineAt(position.line);
+        if (!editor) {
+            vscode.window.showInformationMessage("No other editor split found");
+            return;
+        }
 
-                if (line.text.trim().length > 0) {
-                    editBuilder.insert(position, '\n' + citation);
-                } else {
-                    editBuilder.insert(position, citation);
-                }
-            });
+        // Get current URL from the document
+        const fileContent = await vscode.workspace.fs.readFile(this._activeDocument.uri);
+        const url = new TextDecoder().decode(fileContent).trim();
 
-        } catch (error) {
-            vscode.window.showErrorMessage('Invalid URL in file');
+        const citation = await this.createWebCitation(url, editor);
+        if (citation) {
+            await this.insertIntoEditor(editor, citation);
         }
     }
 } 

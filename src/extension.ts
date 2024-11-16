@@ -79,6 +79,19 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // Add new citation commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.webPreview.insertCitation', () => {
+      webProvider.insertCitation();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.preview.insertCitation', () => {
+      pdfProvider.insertCitation();
+    })
+  );
+
   // Add the new command registration
   context.subscriptions.push(
     vscode.commands.registerCommand('lattice.openUrl', async () => {

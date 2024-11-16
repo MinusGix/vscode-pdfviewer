@@ -94,17 +94,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
 
       this.createPdfCitation(document.uri, editor, pageNumber).then(citation => {
         const finalText = trimmedText + (citation ? '\n' + citation : '');
-
-        editor.edit(editBuilder => {
-          const position = editor.selection.active;
-          const line = editor.document.lineAt(position.line);
-
-          if (line.text.trim().length > 0) {
-            editBuilder.insert(position, '\n' + finalText);
-          } else {
-            editBuilder.insert(position, finalText);
-          }
-        });
+        this.insertIntoEditor(editor, finalText);
       });
     });
   }
@@ -205,11 +195,8 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     // Calculate relative path from editor file to PDF file
     const editorPath = editor.document.uri.path;
     const pdfPath = pdfUri.path;
-
-    // Get the directory of the editor file
     const editorDir = editorPath.substring(0, editorPath.lastIndexOf('/'));
 
-    // Create relative path and encode it
     let relativePath = path.relative(editorDir, pdfPath);
     if (!relativePath.startsWith('.')) {
       relativePath = './' + relativePath;
@@ -219,7 +206,20 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     return `> - [${displayName}](${encodedPath}#page=${pageNumber})`;
   }
 
-  public insertQuotation(): void {
+  private async insertIntoEditor(editor: vscode.TextEditor, text: string): Promise<void> {
+    editor.edit(editBuilder => {
+      const position = editor.selection.active;
+      const line = editor.document.lineAt(position.line);
+
+      if (line.text.trim().length > 0) {
+        editBuilder.insert(position, '\n' + text);
+      } else {
+        editBuilder.insert(position, text);
+      }
+    });
+  }
+
+  public async insertCitation(): Promise<void> {
     if (!this.activePreview) {
       return;
     }
@@ -233,7 +233,16 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       return;
     }
 
-    // Request the selected text and page number from the preview
-    this.activePreview.copyNoteToEditorSplit();
+    const pageNumber = await this.activePreview.getCurrentPage();
+    const citation = await this.createPdfCitation(this.activePreview.resource, editor, pageNumber);
+    await this.insertIntoEditor(editor, citation);
+  }
+
+  public async insertQuotation(): Promise<void> {
+    if (!this.activePreview) {
+      return;
+    }
+
+    this.transferNoteToEditorSplit();
   }
 }

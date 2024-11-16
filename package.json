@@ -107,6 +107,16 @@
         "command": "lattice.openUrl",
         "title": "Open URL",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.webPreview.insertCitation",
+        "title": "Insert Citation",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.preview.insertCitation",
+        "title": "Insert Citation",
+        "category": "Lattice"
       }
     ],
     "configuration": {
