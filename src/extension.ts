@@ -9,24 +9,22 @@ let activeCustomEditorTab: vscode.Tab | undefined;
 export async function openUrlInWebview(url: string) {
   try {
     const urlObj = new URL(url);
-    const sanitizedHostname = urlObj.hostname.replace(/[^a-zA-Z0-9]/g, '-');
-    const suggestedName = `${sanitizedHostname}-${Date.now()}.url`;
+    console.log(`Opening URL in webview: ${url}`);
 
-    const saveUri = await vscode.window.showSaveDialog({
-      defaultUri: vscode.Uri.file(suggestedName),
-      filters: {
-        'URL Files': ['url']
-      }
-    });
+    // Create unique filename with hostname and timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const untitledUri = vscode.Uri.parse(`untitled:${urlObj.hostname}-${timestamp}.url`);
 
-    if (!saveUri) {
-      return;
-    }
+    // Write the URL to the untitled document
+    const edit = new vscode.WorkspaceEdit();
+    edit.createFile(untitledUri, { ignoreIfExists: true });
+    edit.insert(untitledUri, new vscode.Position(0, 0), url);
+    await vscode.workspace.applyEdit(edit);
 
-    const encoder = new TextEncoder();
-    await vscode.workspace.fs.writeFile(saveUri, encoder.encode(url));
-    await vscode.commands.executeCommand('vscode.openWith', saveUri, WebPreviewProvider.viewType);
+    // Open the untitled document in the web preview
+    await vscode.commands.executeCommand('vscode.openWith', untitledUri, WebPreviewProvider.viewType);
   } catch (error) {
+    console.error('Failed to open URL:', error);
     vscode.window.showErrorMessage(`Failed to open URL: ${error.message}`);
   }
 }
