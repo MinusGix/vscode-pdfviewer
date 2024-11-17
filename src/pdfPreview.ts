@@ -106,16 +106,28 @@ export class PdfPreview extends Disposable {
   }
 
   public async copyNoteToEditorSplit(): Promise<void> {
-    return new Promise((resolve) => {
+    // Create a one-time message handler before sending the message
+    const messagePromise = new Promise<void>((resolve) => {
       const listener = this.webviewEditor.webview.onDidReceiveMessage(e => {
         if (e.type === 'copy-note') {
-          listener.dispose();
+          listener.dispose(); // Clean up the listener immediately
           this._onCopyNote.fire([e.text, e.pageNumber]);
           resolve();
         }
       });
-      this.webviewEditor.webview.postMessage({ type: 'copy-note' });
+
+      // Set a timeout to clean up the listener if no response is received
+      setTimeout(() => {
+        listener.dispose();
+        resolve();
+      }, 5000); // 5 second timeout
     });
+
+    // Send the message after setting up the listener
+    this.webviewEditor.webview.postMessage({ type: 'copy-note' });
+
+    // Wait for the response or timeout
+    await messagePromise;
   }
 
   /**
