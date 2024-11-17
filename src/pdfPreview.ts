@@ -24,6 +24,7 @@ export class PdfPreview extends Disposable {
   public readonly onCopyNote = this._onCopyNote.event;
 
   private _cachedTitle: string | null | undefined = undefined;
+  private _titlePromise: Promise<string | null> | null = null;
 
   constructor(
     private readonly extensionRoot: vscode.Uri,
@@ -106,6 +107,11 @@ export class PdfPreview extends Disposable {
   }
 
   public async copyNoteToEditorSplit(): Promise<void> {
+    // Wait for any pending title fetch to complete before proceeding
+    if (this._titlePromise) {
+      await this._titlePromise;
+    }
+
     // Create a one-time message handler before sending the message
     const messagePromise = new Promise<void>((resolve) => {
       const listener = this.webviewEditor.webview.onDidReceiveMessage(e => {
@@ -224,24 +230,25 @@ export class PdfPreview extends Disposable {
   }
 
   public async getPdfTitle(): Promise<string | null> {
+    // Return cached result if we have one
     if (this._cachedTitle !== undefined) {
       return this._cachedTitle;
     }
 
-    return new Promise((resolve) => {
-      // TODO: is this properly escaped? Probably not.
-      // Get the path to the PDF file and escape it properly
+    // If there's already a title fetch in progress, wait for it
+    if (this._titlePromise) {
+      return this._titlePromise;
+    }
+
+    // Start new title fetch
+    this._titlePromise = new Promise<string | null>((resolve) => {
       const pdfPath = this.resource.fsPath.replace(/"/g, '\\"');
 
-      // Max2 works better for arxiv papers.
       child_process.exec(`pdftitle -a max2 -t -p "${pdfPath}"`, {
-        timeout: 10000 // Add timeout of 10 seconds
+        timeout: 10000
       }, (error, stdout, stderr) => {
         if (error) {
-          // Check specifically for command not found error
           if ('code' in error && error.code === 127) {
-            // TODO: only check this once overall, so we aren't checking it for each unique pdf file!
-            // (of course that'd force the user to restart if they install it, but that's fine.)
             vscode.window.showErrorMessage('pdftitle is not installed. Please install it using pip: pip install pdftitle');
           }
           this._cachedTitle = null;
@@ -260,5 +267,11 @@ export class PdfPreview extends Disposable {
         resolve(title);
       });
     });
+
+    try {
+      return await this._titlePromise;
+    } finally {
+      this._titlePromise = null;  // Clear the promise when done
+    }
   }
 }
