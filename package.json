@@ -117,6 +117,12 @@
         "command": "lattice.preview.insertCitation",
         "title": "Insert Citation",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.editTitle",
+        "title": "Edit Document Title",
+        "category": "Lattice",
+        "enablement": "activeCustomEditorId == 'lattice.preview' || activeCustomEditorId == 'lattice.webPreview'"
       }
     ],
     "configuration": {

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Disposable } from './disposable';
 import * as child_process from 'child_process';
+import { DocumentTitleManager } from './documentTitles';
 
 function escapeAttribute(value: string | vscode.Uri): string {
   return value.toString().replace(/"/g, '&quot;');
@@ -230,6 +231,13 @@ export class PdfPreview extends Disposable {
   }
 
   public async getPdfTitle(): Promise<string | null> {
+    // Check the title manager first
+    const titleManager = DocumentTitleManager.getInstance();
+    const cachedTitle = titleManager.getTitle(this.resource);
+    if (cachedTitle !== null) {
+      return cachedTitle;
+    }
+
     // Return cached result if we have one
     if (this._cachedTitle !== undefined) {
       return this._cachedTitle;
@@ -252,6 +260,7 @@ export class PdfPreview extends Disposable {
             vscode.window.showErrorMessage('pdftitle is not installed. Please install it using pip: pip install pdftitle');
           }
           this._cachedTitle = null;
+          titleManager.setTitle(this.resource, null);
           resolve(null);
           return;
         }
@@ -259,11 +268,13 @@ export class PdfPreview extends Disposable {
         const title = stdout.trim();
         if (!title || title.length < 3) {
           this._cachedTitle = null;
+          titleManager.setTitle(this.resource, null);
           resolve(null);
           return;
         }
 
         this._cachedTitle = title;
+        titleManager.setTitle(this.resource, title);
         resolve(title);
       });
     });

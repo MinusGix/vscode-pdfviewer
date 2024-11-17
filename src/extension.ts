@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import { PdfCustomProvider } from './pdfProvider';
 import { WebPreviewProvider } from './webProvider';
 import { TextEncoder } from 'util';
+import { DocumentTitleManager } from './documentTitles';
+
+let activeCustomEditorTab: vscode.Tab | undefined;
 
 export async function openUrlInWebview(url: string) {
   try {
-    // First, show save dialog to get where the user wants to save the URL file
     const urlObj = new URL(url);
     const sanitizedHostname = urlObj.hostname.replace(/[^a-zA-Z0-9]/g, '-');
     const suggestedName = `${sanitizedHostname}-${Date.now()}.url`;
@@ -18,14 +20,11 @@ export async function openUrlInWebview(url: string) {
     });
 
     if (!saveUri) {
-      return; // User cancelled
+      return;
     }
 
-    // Write the URL to the file
     const encoder = new TextEncoder();
     await vscode.workspace.fs.writeFile(saveUri, encoder.encode(url));
-
-    // Open it with our custom editor
     await vscode.commands.executeCommand('vscode.openWith', saveUri, WebPreviewProvider.viewType);
   } catch (error) {
     vscode.window.showErrorMessage(`Failed to open URL: ${error.message}`);
@@ -36,6 +35,28 @@ export function activate(context: vscode.ExtensionContext): void {
   console.log('Activating Lattice extension');
 
   const extensionRoot = vscode.Uri.file(context.extensionPath);
+
+  // Initialize document title manager
+  DocumentTitleManager.init(context.workspaceState);
+  context.subscriptions.push(DocumentTitleManager.getInstance());
+
+  // Track active custom editor tab
+  context.subscriptions.push(
+    vscode.window.tabGroups.onDidChangeTabs(e => {
+      const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+      if (activeTab?.input instanceof vscode.TabInputCustom) {
+        if (activeTab.input.viewType === PdfCustomProvider.viewType ||
+          activeTab.input.viewType === WebPreviewProvider.viewType) {
+          activeCustomEditorTab = activeTab;
+          DocumentTitleManager.getInstance().updateStatusBar(activeTab.input.uri);
+          return;
+        }
+      }
+      activeCustomEditorTab = undefined;
+      // Hide status bar when no custom editor is active
+      DocumentTitleManager.getInstance().updateStatusBar(vscode.Uri.file(''));
+    })
+  );
 
   // Register Web preview provider
   const webProvider = new WebPreviewProvider(extensionRoot);
@@ -110,6 +131,21 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (url) {
         await openUrlInWebview(url);
+      }
+    })
+  );
+
+  // Register edit title command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.editTitle', async () => {
+      if (!activeCustomEditorTab) {
+        vscode.window.showErrorMessage('No active document to edit title');
+        return;
+      }
+
+      const input = activeCustomEditorTab.input;
+      if (input instanceof vscode.TabInputCustom) {
+        await DocumentTitleManager.getInstance().editTitle(input.uri);
       }
     })
   );
