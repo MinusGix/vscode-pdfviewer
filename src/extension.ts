@@ -26,7 +26,7 @@ export async function openUrlInWebview(url: string, mode: 'frame' | 'frameless' 
 
     // Open the untitled document in the web preview
     await vscode.commands.executeCommand('vscode.openWith', untitledUri, WebPreviewProvider.viewType);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to open URL:', error);
     vscode.window.showErrorMessage(`Failed to open URL: ${error.message}`);
   }

@@ -85,7 +85,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
       }
 
       const editor = vscode.window.visibleTextEditors.find(e =>
-        e.document.uri.toString() !== this.activePreview.resource.toString()
+        e.document.uri.toString() !== this.activePreview?.resource.toString()
       );
       if (!editor) {
         vscode.window.showInformationMessage("No other editor split found");
@@ -99,7 +99,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     });
   }
 
-  public get activePreview(): PdfPreview {
+  public get activePreview(): PdfPreview | undefined {
     return this._activePreview;
   }
 
@@ -225,7 +225,7 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     }
 
     const editor = vscode.window.visibleTextEditors.find(e =>
-      e.document.uri.toString() !== this.activePreview.resource.toString()
+      e.document.uri.toString() !== this.activePreview?.resource.toString()
     );
 
     if (!editor) {
