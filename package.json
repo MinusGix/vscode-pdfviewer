@@ -123,6 +123,11 @@
         "title": "Edit Document Title",
         "category": "Lattice",
         "enablement": "activeCustomEditorId == 'lattice.preview' || activeCustomEditorId == 'lattice.webPreview'"
+      },
+      {
+        "command": "lattice.openUrlFrame",
+        "title": "Open URL (Frame)",
+        "category": "Lattice"
       }
     ],
     "configuration": {

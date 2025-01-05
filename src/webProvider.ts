@@ -6,6 +6,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { openUrlInWebview } from './extension';
 
+interface UrlFileConfig {
+    url: string;
+    displayMode: 'frameless' | 'frame';
+}
+
 export class WebPreviewProvider implements vscode.CustomEditorProvider {
     public static readonly viewType = 'lattice.webPreview';
 
@@ -46,6 +51,13 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         });
     }
 
+    private async parseUrlFile(fileContent: string): Promise<UrlFileConfig> {
+        const lines = fileContent.trim().split('\n');
+        const url = lines[0].trim();
+        const displayMode = lines[1]?.trim().toLowerCase() === 'frame' ? 'frame' : 'frameless';
+        return { url, displayMode };
+    }
+
     public async resolveCustomEditor(
         document: vscode.CustomDocument,
         webviewPanel: vscode.WebviewPanel,
@@ -74,23 +86,27 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         });
 
         try {
-            let url: string;
+            let fileContent: string;
             if (document.uri.scheme === 'untitled') {
-                // For untitled documents, get content from the document
                 const textDocument = await vscode.workspace.openTextDocument(document.uri);
-                url = textDocument.getText().trim();
+                fileContent = textDocument.getText();
             } else {
-                // For saved files, read from filesystem
-                const fileContent = await vscode.workspace.fs.readFile(document.uri);
-                url = new TextDecoder().decode(fileContent).trim();
+                const content = await vscode.workspace.fs.readFile(document.uri);
+                fileContent = new TextDecoder().decode(content);
             }
 
+            const config = await this.parseUrlFile(fileContent);
+
             try {
-                new URL(url);
-                const html = await this.fetchWebpage(url);
-                webviewPanel.webview.html = await this.getWebviewContent(html, url);
+                new URL(config.url);
+                if (config.displayMode === 'frame') {
+                    webviewPanel.webview.html = this.getIframeContent(config.url);
+                } else {
+                    const html = await this.fetchWebpage(config.url);
+                    webviewPanel.webview.html = await this.getWebviewContent(html, config.url);
+                }
             } catch (error) {
-                webviewPanel.webview.html = this.getErrorHtml(`Invalid URL or failed to fetch webpage: ${url}`);
+                webviewPanel.webview.html = this.getErrorHtml(`Invalid URL or failed to fetch webpage: ${config.url}`);
             }
         } catch (error) {
             webviewPanel.webview.html = this.getErrorHtml('Error loading URL');
@@ -334,5 +350,34 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         if (citation) {
             await this.insertIntoEditor(editor, citation);
         }
+    }
+
+    private getIframeContent(url: string): string {
+        return `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Web Preview</title>
+                <style>
+                    body, html, iframe {
+                        margin: 0;
+                        padding: 0;
+                        width: 100%;
+                        height: 100%;
+                        border: none;
+                        overflow: hidden;
+                    }
+                </style>
+            </head>
+            <body>
+                <iframe 
+                    src="${url}" 
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox"
+                ></iframe>
+            </body>
+            </html>
+        `;
     }
 } 

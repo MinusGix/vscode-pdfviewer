@@ -6,10 +6,10 @@ import { DocumentTitleManager } from './documentTitles';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
-export async function openUrlInWebview(url: string) {
+export async function openUrlInWebview(url: string, mode: 'frame' | 'frameless' = 'frameless') {
   try {
     const urlObj = new URL(url);
-    console.log(`Opening URL in webview: ${url}`);
+    console.log(`Opening URL in webview (${mode}): ${url}`);
 
     // Create unique filename with hostname and timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -19,6 +19,9 @@ export async function openUrlInWebview(url: string) {
     const edit = new vscode.WorkspaceEdit();
     edit.createFile(untitledUri, { ignoreIfExists: true });
     edit.insert(untitledUri, new vscode.Position(0, 0), url);
+    if (mode === 'frame') {
+      edit.insert(untitledUri, new vscode.Position(1, 0), '\nframe');
+    }
     await vscode.workspace.applyEdit(edit);
 
     // Open the untitled document in the web preview
@@ -144,6 +147,28 @@ export function activate(context: vscode.ExtensionContext): void {
       const input = activeCustomEditorTab.input;
       if (input instanceof vscode.TabInputCustom) {
         await DocumentTitleManager.getInstance().editTitle(input.uri);
+      }
+    })
+  );
+
+  // Add the new command registration
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.openUrlFrame', async () => {
+      const url = await vscode.window.showInputBox({
+        prompt: 'Enter URL to open (in frame)',
+        placeHolder: 'https://example.com',
+        validateInput: (text) => {
+          try {
+            new URL(text);
+            return null;
+          } catch {
+            return 'Please enter a valid URL';
+          }
+        }
+      });
+
+      if (url) {
+        await openUrlInWebview(url, 'frame');
       }
     })
   );
