@@ -8,7 +8,7 @@ export interface CardUpdateEvent {
     cards?: MdCard[];
 }
 
-export class CardManager {
+export class CardManager implements vscode.Disposable {
     private static instance: CardManager;
     private cardsByFile: Map<string, MdCard[]>;
     private disposables: vscode.Disposable[];
@@ -24,9 +24,41 @@ export class CardManager {
         // Watch for file changes
         const watcher = vscode.workspace.createFileSystemWatcher('**/*.md');
 
+        // Watch for workspace folder changes
+        const workspaceFoldersChanged = vscode.workspace.onDidChangeWorkspaceFolders(async e => {
+            // Reload cards from added folders
+            for (const folder of e.added) {
+                const results = await MdParser.parseWorkspaceFolder(folder);
+                for (const [uri, cards] of results) {
+                    this.cardsByFile.set(uri.toString(), cards);
+                    this._onDidUpdateCards.fire({
+                        type: 'add',
+                        uri,
+                        cards
+                    });
+                }
+            }
+
+            // Remove cards from removed folders
+            for (const folder of e.removed) {
+                const pattern = new vscode.RelativePattern(folder, '**/*.md');
+                const files = await vscode.workspace.findFiles(pattern);
+                for (const uri of files) {
+                    if (this.cardsByFile.has(uri.toString())) {
+                        this.cardsByFile.delete(uri.toString());
+                        this._onDidUpdateCards.fire({
+                            type: 'delete',
+                            uri
+                        });
+                    }
+                }
+            }
+        });
+
         this.disposables.push(
             watcher,
             this._onDidUpdateCards,
+            workspaceFoldersChanged,
             watcher.onDidChange(this.handleFileChange.bind(this)),
             watcher.onDidCreate(this.handleFileChange.bind(this)),
             watcher.onDidDelete(this.handleFileDelete.bind(this))
@@ -48,17 +80,21 @@ export class CardManager {
             return;
         }
 
-        const results = await MdParser.parseWorkspace();
-        for (const [uri, cards] of results) {
-            this.cardsByFile.set(uri.toString(), cards);
-            this._onDidUpdateCards.fire({
-                type: 'add',
-                uri,
-                cards
-            });
+        try {
+            const results = await MdParser.parseWorkspace();
+            for (const [uri, cards] of results) {
+                this.cardsByFile.set(uri.toString(), cards);
+                this._onDidUpdateCards.fire({
+                    type: 'add',
+                    uri,
+                    cards
+                });
+            }
+        } catch (error) {
+            console.error('Failed to initialize CardManager:', error);
+        } finally {
+            this.initialized = true;
         }
-
-        this.initialized = true;
     }
 
     /**

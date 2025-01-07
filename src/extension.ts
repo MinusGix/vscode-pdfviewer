@@ -3,6 +3,7 @@ import { PdfCustomProvider } from './pdfProvider';
 import { WebPreviewProvider } from './webProvider';
 import { TextEncoder } from 'util';
 import { DocumentTitleManager } from './documentTitles';
+import { CardManager } from './SRS/cardManager';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
@@ -32,7 +33,7 @@ export async function openUrlInWebview(url: string, mode: 'frame' | 'frameless' 
   }
 }
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
   console.log('Activating Lattice extension');
 
   const extensionRoot = vscode.Uri.file(context.extensionPath);
@@ -40,6 +41,11 @@ export function activate(context: vscode.ExtensionContext): void {
   // Initialize document title manager
   DocumentTitleManager.init(context.workspaceState);
   context.subscriptions.push(DocumentTitleManager.getInstance());
+
+  // Initialize card manager
+  const cardManager = CardManager.getInstance();
+  await cardManager.initialize();
+  context.subscriptions.push(cardManager);
 
   // Track active custom editor tab
   context.subscriptions.push(

@@ -2,6 +2,7 @@
  * Definition of a card defined in a markdown file. Used for the parsing results, and potentially outputting back to markdown.
  */
 export interface MdCard {
+    id?: string;      // Unique identifier for the card
     front: string;
     back: string;
     tags: string[];
@@ -10,6 +11,36 @@ export interface MdCard {
     steps?: boolean;
     difficulty?: 'easy' | 'medium' | 'hard';
     extraFields?: Record<string, string>;
+}
+
+/**
+ * Represents the position of a field in the markdown file
+ */
+export interface FieldPosition {
+    // The line number where the field starts (1-indexed)
+    startLine: number;
+    // The character offset where the field starts (0-indexed)
+    startCharacter: number;
+    // The line number where the field ends (1-indexed)
+    endLine: number;
+    // The character offset where the field ends (0-indexed)
+    endCharacter: number;
+    // The value of the field
+    value: string;
+}
+
+/**
+ * Represents the positions of all fields in a card definition
+ */
+export interface CardPosition {
+    // The position of the entire card block including ::: markers
+    cardBlock: FieldPosition;
+    // Position right after the opening ::: where new fields can be inserted
+    insertPosition: { line: number, character: number };
+    // Position right before the closing ::: where new fields can be inserted
+    appendPosition: { line: number, character: number };
+    // Map of field names to their positions
+    fields: Map<string, FieldPosition>;
 }
 
 type MdCardKey = keyof MdCard;
@@ -45,23 +76,45 @@ function setCardField(card: Partial<MdCard>, field: MdCardKey | string, value: s
 }
 
 /**
- * Parses a markdown card block into a MdCard object
+ * Parses a markdown card block into a MdCard object and tracks field positions
  * @param content The content between :::card markers
- * @returns MdCard object
+ * @param startLine The line number where the card block starts (1-indexed)
+ * @returns MdCard object and position information
  * @throws Error if required fields are missing
  */
-export function parseMdCard(content: string): MdCard {
+export function parseMdCardWithPosition(content: string, startLine: number): { card: MdCard, position: CardPosition } {
     const lines = content.trim().split('\n');
     const card: Partial<MdCard> = {
         type: 'basic',  // Set default type
         tags: []        // Initialize empty tags array
     };
 
+    const position: CardPosition = {
+        cardBlock: {
+            startLine,
+            startCharacter: 0,
+            endLine: startLine + lines.length + 1,
+            endCharacter: 3, // Length of ":::"
+            value: content
+        },
+        insertPosition: {
+            line: startLine + 1,
+            character: 0
+        },
+        appendPosition: {
+            line: startLine + lines.length,
+            character: 0
+        },
+        fields: new Map()
+    };
+
     let currentField: MdCardKey | null = null;
     let currentValue: string[] = [];
+    let currentFieldStart: { line: number, character: number } | null = null;
     let isMultiline = false;
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         const trimmedLine = line.trim();
         // Skip empty lines
         if (!trimmedLine) continue;
@@ -70,15 +123,23 @@ export function parseMdCard(content: string): MdCard {
         const fieldMatch = trimmedLine.match(/^(\w+):\s*(.*)$/);
         if (fieldMatch) {
             // Save previous field if exists
-            if (currentField) {
+            if (currentField && currentFieldStart) {
                 const fieldValue = currentValue.map(line => line.trim()).join('\n').trim();
                 setCardField(card, currentField, fieldValue);
+                position.fields.set(currentField, {
+                    startLine: startLine + currentFieldStart.line,
+                    startCharacter: currentFieldStart.character,
+                    endLine: startLine + i,
+                    endCharacter: lines[i - 1].length,
+                    value: fieldValue
+                });
                 currentValue = [];
             }
 
             const field = fieldMatch[1] as MdCardKey;
             currentField = field;
             const value = fieldMatch[2];
+            currentFieldStart = { line: i, character: line.indexOf(field) };
 
             // If the value starts with |, it's a multiline value
             if (value.trim() === '|') {
@@ -86,19 +147,34 @@ export function parseMdCard(content: string): MdCard {
                 isMultiline = true;
             } else {
                 setCardField(card, field, value.trim());
+                position.fields.set(field, {
+                    startLine: startLine + i,
+                    startCharacter: currentFieldStart.character,
+                    endLine: startLine + i,
+                    endCharacter: line.length,
+                    value: value.trim()
+                });
                 currentField = null;
+                currentFieldStart = null;
                 isMultiline = false;
             }
-        } else if (currentField) {
+        } else if (currentField && currentFieldStart) {
             // This is a continuation of a multiline value
             currentValue.push(line.trim());
         }
     }
 
     // Save the last field if exists
-    if (currentField) {
+    if (currentField && currentFieldStart) {
         const fieldValue = currentValue.map(line => line.trim()).join('\n').trim();
         setCardField(card, currentField, fieldValue);
+        position.fields.set(currentField, {
+            startLine: startLine + currentFieldStart.line,
+            startCharacter: currentFieldStart.character,
+            endLine: startLine + lines.length - 1,
+            endCharacter: lines[lines.length - 1].length,
+            value: fieldValue
+        });
     }
 
     // Validate required fields
@@ -106,27 +182,41 @@ export function parseMdCard(content: string): MdCard {
         throw new Error('Card must have both front and back content');
     }
 
-    return card as MdCard;
+    return { card: card as MdCard, position };
 }
 
 /**
- * Extracts card blocks from markdown content
+ * Extracts card blocks from markdown content with their positions
  * @param mdContent The full markdown content
- * @returns Array of MdCard objects
+ * @returns Array of MdCard objects with their positions
  */
-export function extractMdCards(mdContent: string): MdCard[] {
+export function extractMdCardsWithPosition(mdContent: string): Array<{ card: MdCard, position: CardPosition }> {
     const cardRegex = /:::card\n([\s\S]*?):::/g;
-    const cards: MdCard[] = [];
+    const cards: Array<{ card: MdCard, position: CardPosition }> = [];
+    const lines = mdContent.split('\n');
 
     let match;
     while ((match = cardRegex.exec(mdContent)) !== null) {
         try {
-            const card = parseMdCard(match[1]);
-            cards.push(card);
+            // Calculate the line number where this card starts
+            const precedingContent = mdContent.substring(0, match.index);
+            const startLine = precedingContent.split('\n').length;
+
+            const result = parseMdCardWithPosition(match[1], startLine);
+            cards.push(result);
         } catch (error) {
             // Silently skip invalid cards
         }
     }
 
     return cards;
+}
+
+// Keep the original functions for backward compatibility
+export function parseMdCard(content: string): MdCard {
+    return parseMdCardWithPosition(content, 1).card;
+}
+
+export function extractMdCards(mdContent: string): MdCard[] {
+    return extractMdCardsWithPosition(mdContent).map(result => result.card);
 }

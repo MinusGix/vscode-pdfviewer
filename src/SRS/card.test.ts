@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { parseMdCard, extractMdCards } from './card';
+import { parseMdCard, extractMdCards, parseMdCardWithPosition, extractMdCardsWithPosition } from './card';
 
 describe('parseMdCard', () => {
     test('parses basic card with single-line content', () => {
@@ -288,5 +288,207 @@ back: test
         const cards = extractMdCards(mdContent);
         expect(cards).toHaveLength(1);
         expect(cards[0].front).toBe('Valid card');
+    });
+});
+
+describe('parseMdCardWithPosition', () => {
+    test('tracks positions for single-line fields', () => {
+        const content = `front: What is TypeScript?
+back: A typed superset of JavaScript
+tags: programming, typescript
+type: basic`;
+
+        const { card, position } = parseMdCardWithPosition(content, 3);
+
+        // Check card block position (should not include markers as they're handled by extract)
+        expect(position.cardBlock).toEqual({
+            startLine: 3,
+            startCharacter: 0,
+            endLine: 8,
+            endCharacter: 3,
+            value: content
+        });
+
+        // Check insert/append positions
+        expect(position.insertPosition).toEqual({ line: 4, character: 0 });
+        expect(position.appendPosition).toEqual({ line: 7, character: 0 });
+
+        // Check individual field positions
+        expect(position.fields.get('front')).toEqual({
+            startLine: 3,
+            startCharacter: 0,
+            endLine: 3,
+            endCharacter: 26,
+            value: 'What is TypeScript?'
+        });
+
+        expect(position.fields.get('back')).toEqual({
+            startLine: 4,
+            startCharacter: 0,
+            endLine: 4,
+            endCharacter: 36,
+            value: 'A typed superset of JavaScript'
+        });
+    });
+
+    test('tracks positions for multiline fields', () => {
+        const content = `front: |
+  What are the steps to make a cake?
+  Please list them in order.
+back: |
+  1. Gather ingredients
+  2. Mix dry ingredients
+  3. Mix wet ingredients
+type: problem
+steps: true`;
+
+        const { card, position } = parseMdCardWithPosition(content, 5);
+
+        // Check multiline field positions
+        const frontField = position.fields.get('front');
+        expect(frontField).toEqual({
+            startLine: 5,
+            startCharacter: 0,
+            endLine: 8,
+            endCharacter: 28,
+            value: 'What are the steps to make a cake?\nPlease list them in order.'
+        });
+
+        const backField = position.fields.get('back');
+        expect(backField).toEqual({
+            startLine: 8,
+            startCharacter: 0,
+            endLine: 12,
+            endCharacter: 24,
+            value: '1. Gather ingredients\n2. Mix dry ingredients\n3. Mix wet ingredients'
+        });
+
+        // Check that the field's value matches its position in the original text
+        const lines = content.split('\n');
+        const frontLines = lines.slice(
+            frontField!.startLine - 5,
+            frontField!.endLine - 4
+        );
+        expect(frontLines.join('\n')).toContain(frontField!.value.split('\n')[0]);
+    });
+});
+
+describe('extractMdCardsWithPosition', () => {
+    test('tracks positions for multiple cards in document', () => {
+        const mdContent = `# Study Notes
+
+:::card
+front: Card 1
+back: Answer 1
+type: basic
+:::
+
+Some notes in between...
+
+:::card
+front: Card 2
+back: Answer 2
+type: basic
+:::`;
+
+        const cards = extractMdCardsWithPosition(mdContent);
+        expect(cards).toHaveLength(2);
+
+        // First card
+        const firstCard = cards[0];
+        expect(firstCard.position.cardBlock).toEqual({
+            startLine: 3,
+            startCharacter: 0,
+            endLine: 7,
+            endCharacter: 3,
+            value: 'front: Card 1\nback: Answer 1\ntype: basic\n'
+        });
+        expect(firstCard.position.fields.get('front')).toEqual({
+            startLine: 3,
+            startCharacter: 0,
+            endLine: 3,
+            endCharacter: 13,
+            value: 'Card 1'
+        });
+
+        // Second card
+        const secondCard = cards[1];
+        expect(secondCard.position.cardBlock).toEqual({
+            startLine: 11,
+            startCharacter: 0,
+            endLine: 15,
+            endCharacter: 3,
+            value: 'front: Card 2\nback: Answer 2\ntype: basic\n'
+        });
+        expect(secondCard.position.fields.get('front')).toEqual({
+            startLine: 11,
+            startCharacter: 0,
+            endLine: 11,
+            endCharacter: 13,
+            value: 'Card 2'
+        });
+    });
+
+    test('handles cards with varying indentation', () => {
+        const mdContent = `:::card
+    front: Indented card
+    back: Indented answer
+    type: basic
+:::
+
+:::card
+front: Non-indented card
+back: Non-indented answer
+type: basic
+:::`;
+
+        const cards = extractMdCardsWithPosition(mdContent);
+        expect(cards).toHaveLength(2);
+
+        // First card (indented)
+        const firstCard = cards[0];
+        const frontField = firstCard.position.fields.get('front');
+        expect(frontField).toEqual({
+            startLine: 1,
+            startCharacter: 0,
+            endLine: 1,
+            endCharacter: 20,
+            value: 'Indented card'
+        });
+
+        // Second card (non-indented)
+        const secondCard = cards[1];
+        expect(secondCard.position.fields.get('front')).toEqual({
+            startLine: 7,
+            startCharacter: 0,
+            endLine: 7,
+            endCharacter: 24,
+            value: 'Non-indented card'
+        });
+    });
+
+    test('maintains correct positions with unicode characters', () => {
+        const mdContent = `:::card
+front: What is π?
+back: 3.14159...
+type: basic
+:::`;
+
+        const cards = extractMdCardsWithPosition(mdContent);
+        const position = cards[0].position;
+
+        // Unicode characters should not affect position calculations
+        expect(position.fields.get('front')).toEqual({
+            startLine: 1,
+            startCharacter: 0,
+            endLine: 1,
+            endCharacter: 17,
+            value: 'What is π?'
+        });
+
+        // Verify the actual content matches
+        const lines = mdContent.split('\n');
+        const frontLine = lines[1];
+        expect(frontLine.substring(7)).toBe('What is π?');
     });
 }); 

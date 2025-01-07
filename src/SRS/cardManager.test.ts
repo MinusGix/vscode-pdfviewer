@@ -5,40 +5,75 @@ import { MdParser } from './mdParser';
 import { MdCard } from './card';
 
 // Mock VSCode APIs
-vi.mock('vscode', () => ({
-    EventEmitter: class {
-        private listeners: Function[] = [];
-        public event = (listener: Function) => {
-            this.listeners.push(listener);
-            return { dispose: () => { } };
-        };
-        public fire(event: any) {
-            this.listeners.forEach(listener => listener(event));
+vi.mock('vscode', () => {
+    let workspaceFoldersCallback: Function;
+    return {
+        EventEmitter: class {
+            private listeners: Function[] = [];
+            public event = (listener: Function) => {
+                this.listeners.push(listener);
+                return { dispose: () => { } };
+            };
+            public fire(event: any) {
+                this.listeners.forEach(listener => listener(event));
+            }
+            public dispose() { }
+        },
+        Uri: {
+            file: (path: string) => ({
+                fsPath: path,
+                toString: () => path,
+                // Add these for proper object comparison
+                scheme: 'file',
+                path: path
+            }),
+            parse: (uri: string) => ({
+                fsPath: uri,
+                toString: () => uri,
+                scheme: uri.startsWith('file:') ? 'file' : 'untitled',
+                path: uri
+            })
+        },
+        RelativePattern: class {
+            baseUri: vscode.Uri;
+            path: string;
+            constructor(public base: vscode.WorkspaceFolder | string, public pattern: string) {
+                // Initialize required properties
+                if (typeof base === 'string') {
+                    this.baseUri = vscode.Uri.file(base);
+                    this.path = base;
+                } else {
+                    this.baseUri = base.uri;
+                    this.path = base.uri.fsPath;
+                }
+            }
+        },
+        workspace: {
+            createFileSystemWatcher: () => ({
+                onDidChange: (callback: Function) => ({ dispose: () => { } }),
+                onDidCreate: (callback: Function) => ({ dispose: () => { } }),
+                onDidDelete: (callback: Function) => ({ dispose: () => { } }),
+                dispose: () => { }
+            }),
+            onDidChangeWorkspaceFolders: (callback: Function) => {
+                workspaceFoldersCallback = callback;
+                return { dispose: () => { } };
+            },
+            fireWorkspaceFoldersChange: (e: any) => workspaceFoldersCallback(e),
+            findFiles: vi.fn().mockResolvedValue([]),
+            fs: {
+                readFile: async () => new Uint8Array()
+            }
         }
-        public dispose() { }
-    },
-    Uri: {
-        file: (path: string) => ({ fsPath: path, toString: () => path }),
-        parse: (uri: string) => ({ fsPath: uri, toString: () => uri })
-    },
-    workspace: {
-        createFileSystemWatcher: () => ({
-            onDidChange: (callback: Function) => ({ dispose: () => { } }),
-            onDidCreate: (callback: Function) => ({ dispose: () => { } }),
-            onDidDelete: (callback: Function) => ({ dispose: () => { } }),
-            dispose: () => { }
-        }),
-        fs: {
-            readFile: async () => new Uint8Array()
-        }
-    }
-}));
+    };
+});
 
 // Mock MdParser
 vi.mock('./mdParser', () => ({
     MdParser: {
         parseFile: vi.fn(),
-        parseWorkspace: vi.fn()
+        parseWorkspace: vi.fn(),
+        parseWorkspaceFolder: vi.fn()
     }
 }));
 
@@ -47,6 +82,7 @@ describe('CardManager', () => {
     let updateEvents: CardUpdateEvent[] = [];
 
     beforeEach(() => {
+        vi.clearAllMocks();
         manager = CardManager.getInstance();
         updateEvents = [];
         manager.onDidUpdateCards(event => updateEvents.push(event));
@@ -54,7 +90,6 @@ describe('CardManager', () => {
 
     afterEach(() => {
         manager.dispose();
-        vi.clearAllMocks();
     });
 
     describe('initialization', () => {
@@ -87,6 +122,13 @@ describe('CardManager', () => {
             });
         });
 
+        it('should handle initialization errors gracefully', async () => {
+            vi.mocked(MdParser.parseWorkspace).mockRejectedValue(new Error('Parse error'));
+
+            await manager.initialize();
+            expect(manager.getAllCards()).toEqual([]);
+        });
+
         it('should not initialize twice', async () => {
             vi.mocked(MdParser.parseWorkspace).mockResolvedValue(new Map());
 
@@ -94,6 +136,80 @@ describe('CardManager', () => {
             await manager.initialize();
 
             expect(MdParser.parseWorkspace).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('workspace folder changes', () => {
+        const mockFolder1 = { uri: vscode.Uri.parse('/workspace1'), name: 'ws1', index: 0 };
+        const mockFolder2 = { uri: vscode.Uri.parse('/workspace2'), name: 'ws2', index: 1 };
+
+        beforeEach(async () => {
+            await manager.initialize();
+            updateEvents = []; // Clear initialization events
+        });
+
+        it('should load cards from added workspace folders', async () => {
+            const mockCards: MdCard[] = [{
+                front: 'New workspace card',
+                back: 'Test back',
+                tags: [],
+                type: 'basic'
+            }];
+
+            vi.mocked(MdParser.parseWorkspaceFolder).mockResolvedValue(new Map([
+                [vscode.Uri.parse('/workspace2/test.md'), mockCards]
+            ]));
+
+            // Simulate workspace folder added
+            await (vscode.workspace as any).fireWorkspaceFoldersChange({
+                added: [mockFolder2],
+                removed: []
+            });
+
+            expect(MdParser.parseWorkspaceFolder).toHaveBeenCalledWith(mockFolder2);
+            expect(updateEvents).toHaveLength(1);
+            expect({
+                ...updateEvents[0],
+                uri: updateEvents[0].uri.toString()
+            }).toEqual({
+                type: 'add',
+                uri: '/workspace2/test.md',
+                cards: mockCards
+            });
+        });
+
+        it('should remove cards when workspace folders are removed', async () => {
+            // First add some cards
+            const mockCards: MdCard[] = [{
+                front: 'Test front',
+                back: 'Test back',
+                tags: [],
+                type: 'basic'
+            }];
+
+            const fileUri = vscode.Uri.parse('/workspace1/test.md');
+            vi.mocked(MdParser.parseFile).mockResolvedValue(mockCards);
+            await manager['handleFileChange'](fileUri);
+            updateEvents = []; // Clear add events
+
+            // Mock findFiles to return our test file
+            vi.mocked(vscode.workspace.findFiles).mockResolvedValue([fileUri]);
+
+            // Simulate workspace folder removed
+            await (vscode.workspace as any).fireWorkspaceFoldersChange({
+                added: [],
+                removed: [mockFolder1]
+            });
+
+            expect(updateEvents).toHaveLength(1);
+            expect({
+                ...updateEvents[0],
+                uri: updateEvents[0].uri.toString()
+            }).toEqual({
+                type: 'delete',
+                uri: '/workspace1/test.md'
+            });
+            expect(manager.getCardsFromFile(fileUri)).toBeUndefined();
         });
     });
 
@@ -118,34 +234,35 @@ describe('CardManager', () => {
 
             expect(manager.getCardsFromFile(mockUri)).toEqual(mockCards);
             expect(updateEvents).toHaveLength(1);
-            expect({
-                ...updateEvents[0],
-                uri: updateEvents[0].uri.toString()
-            }).toEqual({
+            expect(updateEvents[0]).toEqual({
                 type: 'add',
-                uri: mockUri.toString(),
+                uri: mockUri,
                 cards: mockCards
             });
         });
 
-        it('should handle file changes that remove cards', async () => {
-            // First add some cards
+        it('should handle file changes that update existing cards', async () => {
+            // First add initial cards
             vi.mocked(MdParser.parseFile).mockResolvedValue(mockCards);
             await manager['handleFileChange'](mockUri);
             updateEvents = []; // Clear initial events
 
-            // Then remove them
-            vi.mocked(MdParser.parseFile).mockResolvedValue([]);
+            // Then update with new cards
+            const updatedCards = [{
+                front: 'Updated front',
+                back: 'Updated back',
+                tags: [],
+                type: 'basic'
+            }];
+            vi.mocked(MdParser.parseFile).mockResolvedValue(updatedCards);
             await manager['handleFileChange'](mockUri);
 
-            expect(manager.getCardsFromFile(mockUri)).toBeUndefined();
+            expect(manager.getCardsFromFile(mockUri)).toEqual(updatedCards);
             expect(updateEvents).toHaveLength(1);
-            expect({
-                ...updateEvents[0],
-                uri: updateEvents[0].uri.toString()
-            }).toEqual({
-                type: 'delete',
-                uri: mockUri.toString()
+            expect(updateEvents[0]).toEqual({
+                type: 'update',
+                uri: mockUri,
+                cards: updatedCards
             });
         });
 
@@ -160,12 +277,9 @@ describe('CardManager', () => {
 
             expect(manager.getCardsFromFile(mockUri)).toBeUndefined();
             expect(updateEvents).toHaveLength(1);
-            expect({
-                ...updateEvents[0],
-                uri: updateEvents[0].uri.toString()
-            }).toEqual({
+            expect(updateEvents[0]).toEqual({
                 type: 'delete',
-                uri: mockUri.toString()
+                uri: mockUri
             });
         });
 
@@ -181,12 +295,9 @@ describe('CardManager', () => {
 
             expect(manager.getCardsFromFile(mockUri)).toBeUndefined();
             expect(updateEvents).toHaveLength(1);
-            expect({
-                ...updateEvents[0],
-                uri: updateEvents[0].uri.toString()
-            }).toEqual({
+            expect(updateEvents[0]).toEqual({
                 type: 'delete',
-                uri: mockUri.toString()
+                uri: mockUri
             });
         });
     });
