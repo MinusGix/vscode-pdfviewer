@@ -1,7 +1,7 @@
 /**
  * Definition of a card defined in a markdown file. Used for the parsing results, and potentially outputting back to markdown.
  */
-interface MdCard {
+export interface MdCard {
     front: string;
     back: string;
     tags: string[];
