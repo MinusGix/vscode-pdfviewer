@@ -52,6 +52,9 @@ function setCardField(card: Partial<MdCard>, field: MdCardKey | string, value: s
         case 'title':
             (card as any)[field] = value;
             break;
+        case 'id':
+            card.id = value;
+            break;
         case 'type':
             card.type = value || 'basic';
             break;

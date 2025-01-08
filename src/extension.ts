@@ -4,6 +4,7 @@ import { WebPreviewProvider } from './webProvider';
 import { TextEncoder } from 'util';
 import { DocumentTitleManager } from './documentTitles';
 import { CardManager } from './SRS/cardManager';
+import { MdParser } from './SRS/mdParser';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
@@ -98,6 +99,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand('lattice.webPreview.insertQuotation', () => {
       webProvider.insertQuotation();
+    })
+  );
+
+  // Register card template insertion commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.insertCardTemplateTesting', () => {
+      cardManager.insertCardTemplateTesting(true);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.insertCardTemplateTestingNoId', () => {
+      cardManager.insertCardTemplateTesting(false);
     })
   );
 

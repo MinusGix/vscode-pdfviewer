@@ -128,6 +128,16 @@
         "command": "lattice.openUrlFrame",
         "title": "Open URL (Frame)",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.insertCardTemplateTesting",
+        "title": "Insert Card (Testing)",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.insertCardTemplateTestingNoId",
+        "title": "Insert Card (Testing, No ID)",
+        "category": "Lattice"
       }
     ],
     "configuration": {

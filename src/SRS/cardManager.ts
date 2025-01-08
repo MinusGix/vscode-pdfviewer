@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { MdCard, CardPosition } from './card';
 import { MdParser, ParseResult } from './mdParser';
-import { ensureCardHasId } from './cardIdentity';
+import { ensureCardHasId, generateCardId } from './cardIdentity';
 
 export interface CardUpdateEvent {
     type: 'add' | 'update' | 'delete';
@@ -141,13 +141,14 @@ export class CardManager implements vscode.Disposable {
             if (cards.length > 0) {
                 // Process cards in reverse order to avoid position invalidation
                 const cardsWithIds = [...cards].reverse().map((card, i) => {
-                    const cardWithId = ensureCardHasId(card);
-                    if (cardWithId.id !== card.id) {
-                        // Card didn't have an ID, so we need to add it to the file
+                    if (!card.id) {
+                        // Card doesn't have an ID, so we need to add it
+                        const cardWithId = ensureCardHasId(card);
                         const position = positions[positions.length - 1 - i];
                         this.insertCardId(uri, cardWithId.id, position);
+                        return cardWithId;
                     }
-                    return cardWithId;
+                    return card;
                 }).reverse(); // Restore original order
 
                 this.cardsByFile.set(uri.toString(), cardsWithIds);
@@ -212,6 +213,51 @@ export class CardManager implements vscode.Disposable {
                 uri
             });
         }
+    }
+
+    /**
+     * Insert a card template at the current cursor position
+     * @param withId Whether to include an ID field in the template
+     */
+    public async insertCardTemplateTesting(withId: boolean = true): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showInformationMessage('No active text editor');
+            return;
+        }
+
+        const cardId = withId ? generateCardId({ front: 'New Card', back: '', tags: [], type: 'basic' }) : undefined;
+        const template = `:::card
+${cardId ? `id: ${cardId}\n` : ''}type: basic
+front: |
+    Enter the front content here
+back: |
+    Enter the back content here
+tags: tag1, tag2
+difficulty: medium
+:::
+
+`;
+
+        const position = editor.selection.active;
+        const line = editor.document.lineAt(position.line);
+
+        await editor.edit(editBuilder => {
+            if (line.text.trim().length > 0) {
+                // If the current line has content, insert on the next line
+                editBuilder.insert(position, '\n' + template);
+            } else {
+                // If the current line is empty, insert at current position
+                editBuilder.insert(position, template);
+            }
+        });
+
+        // Move cursor to the front content line
+        const newPosition = new vscode.Position(
+            position.line + (line.text.trim().length > 0 ? 4 : 3) + (withId ? 1 : 0),
+            4
+        );
+        editor.selection = new vscode.Selection(newPosition, newPosition);
     }
 
     /**

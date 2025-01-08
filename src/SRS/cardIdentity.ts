@@ -1,21 +1,24 @@
 import { MdCard } from './card';
-import { createHash } from 'crypto';
 
+
+let counter = 0;
 /**
  * Generates a stable ID for a card based on its initial content
  * @param card The card to generate an ID for
  * @returns A unique identifier string
  */
 export function generateCardId(card: MdCard): string {
-    // Create a hash of the card's front content to use as a base
-    // This ensures that cards with the same front content get the same initial ID
-    const hash = createHash('sha256')
-        .update(card.front)
-        .digest('hex')
-        .slice(0, 8); // Use first 8 characters for readability
+    // TODO: Should we use a GUID instead?
+    const timestamp = Date.now().toString(36);
 
-    const timestamp = Date.now().toString(36); // Base36 timestamp for uniqueness
-    return `card_${hash}_${timestamp}`;
+    // Increment and reset counter if it gets too large
+    counter = (counter + 1) % 1296; // 36^2
+
+    const counterStr = counter.toString(36).padStart(2, '0');
+
+    const randomChar = Math.floor(Math.random() * 36).toString(36);
+
+    return `${timestamp}${counterStr}${randomChar}`;
 }
 
 /**
