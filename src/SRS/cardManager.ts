@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { MdCard } from './card';
-import { MdParser } from './mdParser';
+import { MdCard, CardPosition } from './card';
+import { MdParser, ParseResult } from './mdParser';
+import { ensureCardHasId } from './cardIdentity';
 
 export interface CardUpdateEvent {
     type: 'add' | 'update' | 'delete';
@@ -29,12 +30,13 @@ export class CardManager implements vscode.Disposable {
             // Reload cards from added folders
             for (const folder of e.added) {
                 const results = await MdParser.parseWorkspaceFolder(folder);
-                for (const [uri, cards] of results) {
-                    this.cardsByFile.set(uri.toString(), cards);
+                for (const [uri, parseResult] of results) {
+                    const cardsWithIds = parseResult.cards.map(card => ensureCardHasId(card));
+                    this.cardsByFile.set(uri.toString(), cardsWithIds);
                     this._onDidUpdateCards.fire({
                         type: 'add',
                         uri,
-                        cards
+                        cards: cardsWithIds
                     });
                 }
             }
@@ -82,12 +84,13 @@ export class CardManager implements vscode.Disposable {
 
         try {
             const results = await MdParser.parseWorkspace();
-            for (const [uri, cards] of results) {
-                this.cardsByFile.set(uri.toString(), cards);
+            for (const [uri, parseResult] of results) {
+                const cardsWithIds = parseResult.cards.map(card => ensureCardHasId(card));
+                this.cardsByFile.set(uri.toString(), cardsWithIds);
                 this._onDidUpdateCards.fire({
                     type: 'add',
                     uri,
-                    cards
+                    cards: cardsWithIds
                 });
             }
         } catch (error) {
@@ -127,19 +130,31 @@ export class CardManager implements vscode.Disposable {
     }
 
     /**
-     * Handle file changes by re-parsing the file
+     * Handle file changes by re-parsing the file and adding IDs to cards that don't have them
      */
     private async handleFileChange(uri: vscode.Uri): Promise<void> {
         try {
             const existingCards = this.cardsByFile.get(uri.toString());
-            const cards = await MdParser.parseFile(uri);
+            const parseResult = await MdParser.parseFile(uri);
+            const { cards, positions } = parseResult;
 
             if (cards.length > 0) {
-                this.cardsByFile.set(uri.toString(), cards);
+                // Process cards in reverse order to avoid position invalidation
+                const cardsWithIds = [...cards].reverse().map((card, i) => {
+                    const cardWithId = ensureCardHasId(card);
+                    if (cardWithId.id !== card.id) {
+                        // Card didn't have an ID, so we need to add it to the file
+                        const position = positions[positions.length - 1 - i];
+                        this.insertCardId(uri, cardWithId.id, position);
+                    }
+                    return cardWithId;
+                }).reverse(); // Restore original order
+
+                this.cardsByFile.set(uri.toString(), cardsWithIds);
                 this._onDidUpdateCards.fire({
                     type: existingCards ? 'update' : 'add',
                     uri,
-                    cards
+                    cards: cardsWithIds
                 });
             } else if (existingCards) {
                 // If there were cards before but now there aren't any,
@@ -161,6 +176,28 @@ export class CardManager implements vscode.Disposable {
                     uri
                 });
             }
+        }
+    }
+
+    /**
+     * Insert an ID field at the start of a card definition
+     */
+    private async insertCardId(uri: vscode.Uri, id: string | undefined, position: CardPosition): Promise<void> {
+        if (!id) return;
+
+        try {
+            const document = await vscode.workspace.openTextDocument(uri);
+            const edit = new vscode.WorkspaceEdit();
+            const { line, character } = position.insertPosition;
+            const idField = `id: ${id}\n`;
+
+            // Create an edit to insert the ID field at the correct position
+            edit.insert(uri, new vscode.Position(line - 1, character), idField);
+
+            // Apply the edit
+            await vscode.workspace.applyEdit(edit);
+        } catch (error) {
+            console.error(`Failed to insert card ID: ${uri.fsPath}`, error);
         }
     }
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { CardManager, CardUpdateEvent } from './cardManager';
 import { MdParser } from './mdParser';
-import { MdCard } from './card';
+import { MdCard, CardPosition } from './card';
 
 // Mock VSCode APIs
 vi.mock('vscode', () => {
@@ -81,6 +81,31 @@ describe('CardManager', () => {
     let manager: CardManager;
     let updateEvents: CardUpdateEvent[] = [];
 
+    // Helper function to create a mock ParseResult
+    function createMockParseResult(cards: MdCard[]): { cards: MdCard[], positions: CardPosition[] } {
+        return {
+            cards,
+            positions: cards.map((_, i) => ({
+                cardBlock: {
+                    startLine: i * 5 + 1,
+                    startCharacter: 0,
+                    endLine: i * 5 + 5,
+                    endCharacter: 3,
+                    value: 'mock content'
+                },
+                insertPosition: {
+                    line: i * 5 + 2,
+                    character: 0
+                },
+                appendPosition: {
+                    line: i * 5 + 4,
+                    character: 0
+                },
+                fields: new Map()
+            }))
+        };
+    }
+
     beforeEach(() => {
         vi.clearAllMocks();
         manager = CardManager.getInstance();
@@ -102,7 +127,7 @@ describe('CardManager', () => {
             }];
 
             const mockResults = new Map([
-                [vscode.Uri.parse('file1.md'), mockCards]
+                [vscode.Uri.parse('file1.md'), createMockParseResult(mockCards)]
             ]);
 
             vi.mocked(MdParser.parseWorkspace).mockResolvedValue(mockResults);
@@ -110,11 +135,22 @@ describe('CardManager', () => {
             await manager.initialize();
 
             expect(MdParser.parseWorkspace).toHaveBeenCalled();
-            expect(manager.getAllCards()).toEqual(mockCards);
+            expect(manager.getAllCards()).toEqual([expect.objectContaining({
+                front: 'Test front',
+                back: 'Test back',
+                tags: [],
+                type: 'basic'
+            })]);
             expect(updateEvents).toHaveLength(1);
             expect({
                 ...updateEvents[0],
-                uri: updateEvents[0].uri.toString()
+                uri: updateEvents[0].uri.toString(),
+                cards: updateEvents[0].cards?.map(card => ({
+                    front: card.front,
+                    back: card.back,
+                    tags: card.tags,
+                    type: card.type
+                }))
             }).toEqual({
                 type: 'add',
                 uri: 'file1.md',
@@ -157,7 +193,7 @@ describe('CardManager', () => {
             }];
 
             vi.mocked(MdParser.parseWorkspaceFolder).mockResolvedValue(new Map([
-                [vscode.Uri.parse('/workspace2/test.md'), mockCards]
+                [vscode.Uri.parse('/workspace2/test.md'), createMockParseResult(mockCards)]
             ]));
 
             // Simulate workspace folder added
@@ -170,7 +206,13 @@ describe('CardManager', () => {
             expect(updateEvents).toHaveLength(1);
             expect({
                 ...updateEvents[0],
-                uri: updateEvents[0].uri.toString()
+                uri: updateEvents[0].uri.toString(),
+                cards: updateEvents[0].cards?.map(card => ({
+                    front: card.front,
+                    back: card.back,
+                    tags: card.tags,
+                    type: card.type
+                }))
             }).toEqual({
                 type: 'add',
                 uri: '/workspace2/test.md',
@@ -188,7 +230,7 @@ describe('CardManager', () => {
             }];
 
             const fileUri = vscode.Uri.parse('/workspace1/test.md');
-            vi.mocked(MdParser.parseFile).mockResolvedValue(mockCards);
+            vi.mocked(MdParser.parseFile).mockResolvedValue(createMockParseResult(mockCards));
             await manager['handleFileChange'](fileUri);
             updateEvents = []; // Clear add events
 
@@ -228,13 +270,26 @@ describe('CardManager', () => {
         });
 
         it('should handle file changes with new cards', async () => {
-            vi.mocked(MdParser.parseFile).mockResolvedValue(mockCards);
+            vi.mocked(MdParser.parseFile).mockResolvedValue(createMockParseResult(mockCards));
 
             await manager['handleFileChange'](mockUri);
 
-            expect(manager.getCardsFromFile(mockUri)).toEqual(mockCards);
+            expect(manager.getCardsFromFile(mockUri)).toEqual([expect.objectContaining({
+                front: 'Test front',
+                back: 'Test back',
+                tags: [],
+                type: 'basic'
+            })]);
             expect(updateEvents).toHaveLength(1);
-            expect(updateEvents[0]).toEqual({
+            expect({
+                ...updateEvents[0],
+                cards: updateEvents[0].cards?.map(card => ({
+                    front: card.front,
+                    back: card.back,
+                    tags: card.tags,
+                    type: card.type
+                }))
+            }).toEqual({
                 type: 'add',
                 uri: mockUri,
                 cards: mockCards
@@ -243,7 +298,7 @@ describe('CardManager', () => {
 
         it('should handle file changes that update existing cards', async () => {
             // First add initial cards
-            vi.mocked(MdParser.parseFile).mockResolvedValue(mockCards);
+            vi.mocked(MdParser.parseFile).mockResolvedValue(createMockParseResult(mockCards));
             await manager['handleFileChange'](mockUri);
             updateEvents = []; // Clear initial events
 
@@ -254,12 +309,25 @@ describe('CardManager', () => {
                 tags: [],
                 type: 'basic'
             }];
-            vi.mocked(MdParser.parseFile).mockResolvedValue(updatedCards);
+            vi.mocked(MdParser.parseFile).mockResolvedValue(createMockParseResult(updatedCards));
             await manager['handleFileChange'](mockUri);
 
-            expect(manager.getCardsFromFile(mockUri)).toEqual(updatedCards);
+            expect(manager.getCardsFromFile(mockUri)).toEqual([expect.objectContaining({
+                front: 'Updated front',
+                back: 'Updated back',
+                tags: [],
+                type: 'basic'
+            })]);
             expect(updateEvents).toHaveLength(1);
-            expect(updateEvents[0]).toEqual({
+            expect({
+                ...updateEvents[0],
+                cards: updateEvents[0].cards?.map(card => ({
+                    front: card.front,
+                    back: card.back,
+                    tags: card.tags,
+                    type: card.type
+                }))
+            }).toEqual({
                 type: 'update',
                 uri: mockUri,
                 cards: updatedCards
@@ -268,7 +336,7 @@ describe('CardManager', () => {
 
         it('should handle file deletion', async () => {
             // First add some cards
-            vi.mocked(MdParser.parseFile).mockResolvedValue(mockCards);
+            vi.mocked(MdParser.parseFile).mockResolvedValue(createMockParseResult(mockCards));
             await manager['handleFileChange'](mockUri);
             updateEvents = []; // Clear initial events
 
@@ -285,7 +353,7 @@ describe('CardManager', () => {
 
         it('should handle parse errors by removing cards', async () => {
             // First add some cards
-            vi.mocked(MdParser.parseFile).mockResolvedValue(mockCards);
+            vi.mocked(MdParser.parseFile).mockResolvedValue(createMockParseResult(mockCards));
             await manager['handleFileChange'](mockUri);
             updateEvents = []; // Clear initial events
 
@@ -320,19 +388,42 @@ describe('CardManager', () => {
 
         beforeEach(async () => {
             vi.mocked(MdParser.parseWorkspace).mockResolvedValue(new Map([
-                [mockUri1, mockCards1],
-                [mockUri2, mockCards2]
+                [mockUri1, createMockParseResult(mockCards1)],
+                [mockUri2, createMockParseResult(mockCards2)]
             ]));
             await manager.initialize();
         });
 
         it('should get cards from specific file', () => {
-            expect(manager.getCardsFromFile(mockUri1)).toEqual(mockCards1);
-            expect(manager.getCardsFromFile(mockUri2)).toEqual(mockCards2);
+            expect(manager.getCardsFromFile(mockUri1)).toEqual([expect.objectContaining({
+                front: 'Test1 front',
+                back: 'Test1 back',
+                tags: [],
+                type: 'basic'
+            })]);
+            expect(manager.getCardsFromFile(mockUri2)).toEqual([expect.objectContaining({
+                front: 'Test2 front',
+                back: 'Test2 back',
+                tags: [],
+                type: 'basic'
+            })]);
         });
 
         it('should get all cards', () => {
-            expect(manager.getAllCards()).toEqual([...mockCards1, ...mockCards2]);
+            expect(manager.getAllCards()).toEqual([
+                expect.objectContaining({
+                    front: 'Test1 front',
+                    back: 'Test1 back',
+                    tags: [],
+                    type: 'basic'
+                }),
+                expect.objectContaining({
+                    front: 'Test2 front',
+                    back: 'Test2 back',
+                    tags: [],
+                    type: 'basic'
+                })
+            ]);
         });
 
         it('should get all files with cards', () => {
