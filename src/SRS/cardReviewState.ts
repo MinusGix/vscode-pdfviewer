@@ -73,7 +73,8 @@ export class CardReviewState {
             return existingState.fsrsCard;
         }
 
-        const newFsrsCard = createEmptyCard();
+        const now = new Date();
+        const newFsrsCard = createEmptyCard(now);
         this.states.set(card.id, { cardId: card.id, fsrsCard: newFsrsCard });
         this.saveState();
         return newFsrsCard;

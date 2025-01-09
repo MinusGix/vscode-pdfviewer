@@ -138,6 +138,11 @@
         "command": "lattice.insertCardTemplateTestingNoId",
         "title": "Insert Card (Testing, No ID)",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.reviewCards",
+        "title": "Review Due Cards",
+        "category": "Lattice"
       }
     ],
     "configuration": {

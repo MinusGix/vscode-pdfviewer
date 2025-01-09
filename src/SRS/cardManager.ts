@@ -97,6 +97,12 @@ export class CardManager implements vscode.Disposable {
             for (const [uri, parseResult] of results) {
                 const cardsWithIds = parseResult.cards.map(card => ensureCardHasId(card));
                 this.cardsByFile.set(uri.toString(), cardsWithIds);
+                // Initialize review states for all cards
+                cardsWithIds.forEach(card => {
+                    if (card.id) {
+                        this.reviewState.getOrCreateState(card);
+                    }
+                });
                 this._onDidUpdateCards.fire({
                     type: 'add',
                     uri,
@@ -160,6 +166,13 @@ export class CardManager implements vscode.Disposable {
                     }
                     return card;
                 }).reverse(); // Restore original order
+
+                // Initialize review states for all cards
+                cardsWithIds.forEach(card => {
+                    if (card.id) {
+                        this.reviewState.getOrCreateState(card);
+                    }
+                });
 
                 this.cardsByFile.set(uri.toString(), cardsWithIds);
                 this._onDidUpdateCards.fire({
