@@ -46,6 +46,13 @@ export class CardReviewView {
             }
         });
 
+        // Handle visibility changes
+        this.panel.onDidChangeViewState(() => {
+            if (this.panel.visible) {
+                this.restoreCardState();
+            }
+        });
+
         // Show first card when view is created
         this.showNextCard();
     }
@@ -194,34 +201,51 @@ export class CardReviewView {
 
     private async showNextCard() {
         const dueCards = this.cardManager.getDueCards();
+        this.currentCard = dueCards.length > 0 ? dueCards[0] : undefined;
+        await this.displayCurrentCard();
+    }
 
-        if (dueCards.length > 0) {
-            this.currentCard = dueCards[0];
-            const state = this.cardManager.getCardReviewState(this.currentCard);
-            const fsrs = this.cardManager.getFSRS();
-            const now = new Date();
-            const scheduling = fsrs.repeat(state, now);
+    private async restoreCardState() {
+        if (this.currentCard) {
+            // Check if the current card is still due
+            const dueCards = this.cardManager.getDueCards();
+            if (!dueCards.some(card => card.id === this.currentCard?.id)) {
+                // Current card is no longer due, show next due card
+                await this.showNextCard();
+                return;
+            }
+        }
+        await this.displayCurrentCard();
+    }
 
-            // Create intervals map for each rating
-            const intervals: { [key: number]: string } = {};
-            Array.from(scheduling).forEach(item => {
-                intervals[item.log.rating] = this.formatTimeInterval(item.card.due);
-            });
-
-            this.panel.webview.postMessage({
-                type: 'update',
-                content: this.currentCard.front,
-                intervals,
-                enableButtons: true
-            });
-        } else {
+    private async displayCurrentCard() {
+        if (!this.currentCard) {
             this.panel.webview.postMessage({
                 type: 'update',
                 content: 'No cards due for review!',
                 intervals: {},
                 enableButtons: false
             });
+            return;
         }
+
+        const state = this.cardManager.getCardReviewState(this.currentCard);
+        const fsrs = this.cardManager.getFSRS();
+        const now = new Date();
+        const scheduling = fsrs.repeat(state, now);
+
+        // Create intervals map for each rating
+        const intervals: { [key: number]: string } = {};
+        Array.from(scheduling).forEach(item => {
+            intervals[item.log.rating] = this.formatTimeInterval(item.card.due);
+        });
+
+        this.panel.webview.postMessage({
+            type: 'update',
+            content: this.currentCard.front,
+            intervals,
+            enableButtons: true
+        });
     }
 
     public static show(extensionRoot: vscode.Uri, cardManager: CardManager) {
