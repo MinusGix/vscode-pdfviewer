@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { MdCard, CardPosition } from './card';
 import { MdParser, ParseResult } from './mdParser';
 import { ensureCardHasId, generateCardId } from './cardIdentity';
+import { CardReviewState } from './cardReviewState';
+import { Card as FSRSCard, FSRS } from 'ts-fsrs';
 
 export interface CardUpdateEvent {
     type: 'add' | 'update' | 'delete';
@@ -16,11 +18,19 @@ export class CardManager implements vscode.Disposable {
     private initialized: boolean;
     private readonly _onDidUpdateCards = new vscode.EventEmitter<CardUpdateEvent>();
     public readonly onDidUpdateCards = this._onDidUpdateCards.event;
+    private reviewState: CardReviewState;
 
     private constructor() {
         this.cardsByFile = new Map();
         this.disposables = [];
         this.initialized = false;
+
+        // Initialize review state with workspace root
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            throw new Error('No workspace folder found');
+        }
+        this.reviewState = new CardReviewState(workspaceRoot);
 
         // Watch for file changes
         const watcher = vscode.workspace.createFileSystemWatcher('**/*.md');
@@ -207,6 +217,18 @@ export class CardManager implements vscode.Disposable {
      */
     private handleFileDelete(uri: vscode.Uri): void {
         if (this.cardsByFile.has(uri.toString())) {
+            // Get the cards that are being deleted
+            const deletedCards = this.cardsByFile.get(uri.toString());
+
+            // Mark their review states as deleted
+            if (deletedCards) {
+                for (const card of deletedCards) {
+                    if (card.id) {
+                        this.reviewState.markCardAsDeleted(card.id);
+                    }
+                }
+            }
+
             this.cardsByFile.delete(uri.toString());
             this._onDidUpdateCards.fire({
                 type: 'delete',
@@ -258,6 +280,41 @@ difficulty: medium
             4
         );
         editor.selection = new vscode.Selection(newPosition, newPosition);
+    }
+
+    /**
+     * Get the review state for a card
+     * @param card The card to get the review state for
+     * @returns The FSRS card state
+     */
+    public getCardReviewState(card: MdCard): FSRSCard {
+        return this.reviewState.getOrCreateState(card);
+    }
+
+    /**
+     * Update the review state for a card
+     * @param cardId The ID of the card
+     * @param newState The new FSRS card state
+     */
+    public updateCardReviewState(cardId: string, newState: FSRSCard): void {
+        this.reviewState.updateState(cardId, newState);
+    }
+
+    /**
+     * Get all cards that are due for review
+     * @param now Optional date to check against (defaults to current time)
+     * @returns Array of card IDs that are due for review
+     */
+    public getDueCards(now?: Date): MdCard[] {
+        const dueCardIds = this.reviewState.getDueCards(now);
+        return this.getAllCards().filter(card => card.id && dueCardIds.includes(card.id));
+    }
+
+    /**
+     * Get the FSRS scheduler instance
+     */
+    public getFSRS(): FSRS {
+        return this.reviewState.getFSRS();
     }
 
     /**
