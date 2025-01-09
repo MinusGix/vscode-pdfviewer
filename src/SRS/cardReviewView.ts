@@ -87,6 +87,23 @@ export class CardReviewView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Card Review</title>
+            <!-- Add MathJax -->
+            <script>
+                MathJax = {
+                    tex: {
+                        inlineMath: [['$', '$'], ['\\(', '\\)']],
+                        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                        processEscapes: true,
+                    },
+                    svg: {
+                        fontCache: 'global'
+                    },
+                    options: {
+                        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+                    }
+                };
+            </script>
+            <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
             <style>
                 body {
                     font-family: var(--vscode-font-family);
@@ -160,6 +177,15 @@ export class CardReviewView {
                     max-width: 100%;
                     height: auto;
                 }
+                /* MathJax styles */
+                .content .math {
+                    overflow-x: auto;
+                    max-width: 100%;
+                    padding: 0.5em 0;
+                }
+                .content .math svg {
+                    max-width: 100%;
+                }
                 .buttons {
                     display: flex;
                     gap: 1rem;
@@ -230,6 +256,10 @@ export class CardReviewView {
                     switch (message.type) {
                         case 'update':
                             document.getElementById('content').innerHTML = message.content;
+                            // Typeset the math after updating content
+                            if (window.MathJax) {
+                                MathJax.typesetPromise().catch((err) => console.error('MathJax error:', err));
+                            }
                             // Update intervals and button states
                             for (let i = 1; i <= 4; i++) {
                                 const button = document.getElementById('button-' + i);
