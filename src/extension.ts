@@ -197,7 +197,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Register card review command
   context.subscriptions.push(
     vscode.commands.registerCommand('lattice.reviewCards', () => {
-      const cardManager = CardManager.getInstance();
       CardReviewView.show(context.extensionUri, cardManager);
     })
   );

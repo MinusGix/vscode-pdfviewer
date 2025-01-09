@@ -14,6 +14,7 @@ export class CardReviewView {
     public static readonly viewType = 'lattice.cardReview';
     private panel: vscode.WebviewPanel;
     private currentCard?: MdCard;
+    private showingAnswer: boolean = false;
 
     constructor(
         private readonly extensionRoot: vscode.Uri,
@@ -30,6 +31,19 @@ export class CardReviewView {
         );
 
         this.panel.webview.html = this.getWebviewContent();
+
+        // Focus the webview when it's shown
+        this.panel.onDidChangeViewState(e => {
+            if (e.webviewPanel.visible) {
+                this.restoreCardState();
+                e.webviewPanel.webview.postMessage({ type: 'focus' });
+            }
+        });
+
+        // Focus on initial creation
+        setTimeout(() => {
+            this.panel.webview.postMessage({ type: 'focus' });
+        }, 100);
 
         // Handle messages from the webview
         this.panel.webview.onDidReceiveMessage(async message => {
@@ -48,6 +62,11 @@ export class CardReviewView {
                             this.cardManager.updateCardReviewState(this.currentCard.id, scheduleItem.card);
                         }
                         await this.showNextCard();
+                    }
+                    break;
+                case 'showAnswer':
+                    if (this.currentCard && !this.showingAnswer) {
+                        await this.showAnswer();
                     }
                     break;
             }
@@ -201,6 +220,24 @@ export class CardReviewView {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
+                    position: relative;
+                }
+                button::after {
+                    content: attr(data-shortcut);
+                    position: absolute;
+                    bottom: -25px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    font-size: 0.8rem;
+                    opacity: 0;
+                    transition: opacity 0.2s;
+                    background: var(--vscode-editor-background);
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    white-space: nowrap;
+                }
+                button:hover::after {
+                    opacity: 0.8;
                 }
                 .interval {
                     font-size: 0.8rem;
@@ -211,9 +248,17 @@ export class CardReviewView {
                 .hard { background: var(--vscode-editorWarning-foreground); color: white; }
                 .good { background: var(--vscode-testing-iconPassed); color: white; }
                 .easy { background: var(--vscode-charts-green); color: white; }
+                .show-answer { 
+                    background: var(--vscode-button-background); 
+                    color: var(--vscode-button-foreground);
+                    margin-bottom: 1rem;
+                }
                 button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
+                }
+                button:disabled::after {
+                    display: none;
                 }
             </style>
         </head>
@@ -223,20 +268,23 @@ export class CardReviewView {
                     Loading...
                 </div>
             </div>
+            <button class="show-answer" onclick="showAnswer()" id="show-answer-button" data-shortcut="Space">
+                Show Answer
+            </button>
             <div class="buttons" id="buttons">
-                <button class="again" onclick="rate(1)" id="button-1" disabled>
+                <button class="again" onclick="rate(1)" id="button-1" disabled data-shortcut="1">
                     <span>Again</span>
                     <span class="interval" id="interval-1"></span>
                 </button>
-                <button class="hard" onclick="rate(2)" id="button-2" disabled>
+                <button class="hard" onclick="rate(2)" id="button-2" disabled data-shortcut="2">
                     <span>Hard</span>
                     <span class="interval" id="interval-2"></span>
                 </button>
-                <button class="good" onclick="rate(3)" id="button-3" disabled>
+                <button class="good" onclick="rate(3)" id="button-3" disabled data-shortcut="3">
                     <span>Good</span>
                     <span class="interval" id="interval-3"></span>
                 </button>
-                <button class="easy" onclick="rate(4)" id="button-4" disabled>
+                <button class="easy" onclick="rate(4)" id="button-4" disabled data-shortcut="4">
                     <span>Easy</span>
                     <span class="interval" id="interval-4"></span>
                 </button>
@@ -248,6 +296,12 @@ export class CardReviewView {
                     vscode.postMessage({
                         type: 'rate',
                         rating: rating
+                    });
+                }
+
+                function showAnswer() {
+                    vscode.postMessage({
+                        type: 'showAnswer'
                     });
                 }
 
@@ -267,7 +321,32 @@ export class CardReviewView {
                                 interval.textContent = message.intervals[i] || '';
                                 button.disabled = !message.enableButtons;
                             }
+                            // Update show answer button
+                            document.getElementById('show-answer-button').style.display = 
+                                message.enableButtons ? 'none' : 'block';
                             break;
+                        case 'focus':
+                            // Focus the webview
+                            window.focus();
+                            document.body.focus();
+                            break;
+                    }
+                });
+
+                // Handle keyboard shortcuts
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === ' ' || e.key === 'Space') {
+                        e.preventDefault();  // Prevent scrolling
+                        const showAnswerButton = document.getElementById('show-answer-button');
+                        if (!showAnswerButton.style.display || showAnswerButton.style.display !== 'none') {
+                            showAnswer();
+                        }
+                    } else if (!isNaN(parseInt(e.key)) && parseInt(e.key) >= 1 && parseInt(e.key) <= 4) {
+                        const rating = parseInt(e.key);
+                        const button = document.getElementById('button-' + rating);
+                        if (!button.disabled) {
+                            rate(rating);
+                        }
                     }
                 });
             </script>
@@ -278,6 +357,7 @@ export class CardReviewView {
     private async showNextCard() {
         const dueCards = this.cardManager.getDueCards();
         this.currentCard = dueCards.length > 0 ? dueCards[0] : undefined;
+        this.showingAnswer = false;
         await this.displayCurrentCard();
     }
 
@@ -317,14 +397,28 @@ export class CardReviewView {
         });
 
         // Render markdown content
-        const renderedContent = marked(this.currentCard.front);
+        const content = this.showingAnswer
+            ? `${marked(this.currentCard.front)}\n<hr>\n${marked(this.currentCard.back)}`
+            : marked(this.currentCard.front);
 
         this.panel.webview.postMessage({
             type: 'update',
-            content: renderedContent,
+            content: content,
             intervals,
-            enableButtons: true
+            enableButtons: this.showingAnswer
         });
+    }
+
+    private async rateCard(rating: Rating) {
+        this.panel.webview.postMessage({
+            type: 'rate',
+            rating
+        });
+    }
+
+    private async showAnswer() {
+        this.showingAnswer = true;
+        await this.displayCurrentCard();
     }
 
     public static show(extensionRoot: vscode.Uri, cardManager: CardManager) {

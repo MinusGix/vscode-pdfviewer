@@ -143,6 +143,31 @@
         "command": "lattice.reviewCards",
         "title": "Review Due Cards",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.cardReview.showAnswer",
+        "title": "Show Answer",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.cardReview.rateAgain",
+        "title": "Rate Card: Again",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.cardReview.rateHard",
+        "title": "Rate Card: Hard",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.cardReview.rateGood",
+        "title": "Rate Card: Good",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.cardReview.rateEasy",
+        "title": "Rate Card: Easy",
+        "category": "Lattice"
       }
     ],
     "configuration": {
