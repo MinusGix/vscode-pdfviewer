@@ -2,6 +2,13 @@ import * as vscode from 'vscode';
 import { MdCard } from './card';
 import { CardManager } from './cardManager';
 import { Card as FSRSCard, Rating } from 'ts-fsrs';
+import { marked } from 'marked';
+
+// Configure marked to preserve line breaks
+marked.setOptions({
+    breaks: true,  // This interprets single line breaks as <br>
+    gfm: true      // Enable GitHub Flavored Markdown
+});
 
 export class CardReviewView {
     public static readonly viewType = 'lattice.cardReview';
@@ -107,7 +114,51 @@ export class CardReviewView {
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    text-align: center;
+                }
+                .content {
+                    font-size: 1.2rem;
+                    line-height: 1.6;
+                    margin: 1rem 0;
+                    width: 100%;
+                }
+                /* Markdown styles */
+                .content h1, .content h2, .content h3, .content h4, .content h5, .content h6 {
+                    color: var(--vscode-editor-foreground);
+                    margin-top: 1em;
+                    margin-bottom: 0.5em;
+                }
+                .content p {
+                    margin: 0.5em 0;
+                }
+                .content ul, .content ol {
+                    padding-left: 2em;
+                    margin: 0.5em 0;
+                }
+                .content code {
+                    font-family: var(--vscode-editor-font-family);
+                    background: var(--vscode-textCodeBlock-background);
+                    padding: 0.2em 0.4em;
+                    border-radius: 3px;
+                }
+                .content pre {
+                    background: var(--vscode-textCodeBlock-background);
+                    padding: 1em;
+                    border-radius: 4px;
+                    overflow-x: auto;
+                }
+                .content pre code {
+                    background: none;
+                    padding: 0;
+                }
+                .content blockquote {
+                    border-left: 4px solid var(--vscode-textBlockQuote-border);
+                    margin: 0.5em 0;
+                    padding-left: 1em;
+                    color: var(--vscode-textBlockQuote-foreground);
+                }
+                .content img {
+                    max-width: 100%;
+                    height: auto;
                 }
                 .buttons {
                     display: flex;
@@ -134,11 +185,6 @@ export class CardReviewView {
                 .hard { background: var(--vscode-editorWarning-foreground); color: white; }
                 .good { background: var(--vscode-testing-iconPassed); color: white; }
                 .easy { background: var(--vscode-charts-green); color: white; }
-                .content {
-                    font-size: 1.2rem;
-                    line-height: 1.6;
-                    margin: 1rem 0;
-                }
                 button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
@@ -240,9 +286,12 @@ export class CardReviewView {
             intervals[item.log.rating] = this.formatTimeInterval(item.card.due);
         });
 
+        // Render markdown content
+        const renderedContent = marked(this.currentCard.front);
+
         this.panel.webview.postMessage({
             type: 'update',
-            content: this.currentCard.front,
+            content: renderedContent,
             intervals,
             enableButtons: true
         });

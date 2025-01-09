@@ -220,6 +220,7 @@
   },
   "dependencies": {
     "@types/vscode": "^1.95.0",
+    "marked": "^15.0.6",
     "ts-fsrs": "^4.5.1"
   },
   "devDependencies": {
