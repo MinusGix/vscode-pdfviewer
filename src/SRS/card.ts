@@ -11,6 +11,9 @@ export interface MdCard {
     steps?: boolean;
     difficulty?: 'easy' | 'medium' | 'hard';
     extraFields?: Record<string, string>;
+    // Source information
+    sourceFile?: string;    // Path to the source file
+    sourceLine?: number;    // Line number in the source file where the card starts
 }
 
 /**
@@ -193,7 +196,7 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
  * @param mdContent The full markdown content
  * @returns Array of MdCard objects with their positions
  */
-export function extractMdCardsWithPosition(mdContent: string): Array<{ card: MdCard, position: CardPosition }> {
+export function extractMdCardsWithPosition(mdContent: string, sourceFile?: string): Array<{ card: MdCard, position: CardPosition }> {
     const cardRegex = /:::card\n([\s\S]*?):::/g;
     const cards: Array<{ card: MdCard, position: CardPosition }> = [];
     const lines = mdContent.split('\n');
@@ -206,6 +209,13 @@ export function extractMdCardsWithPosition(mdContent: string): Array<{ card: MdC
             const startLine = precedingContent.split('\n').length;
 
             const result = parseMdCardWithPosition(match[1], startLine);
+
+            // Add source information
+            if (sourceFile) {
+                result.card.sourceFile = sourceFile;
+                result.card.sourceLine = startLine;
+            }
+
             cards.push(result);
         } catch (error) {
             // Silently skip invalid cards
@@ -220,6 +230,6 @@ export function parseMdCard(content: string): MdCard {
     return parseMdCardWithPosition(content, 1).card;
 }
 
-export function extractMdCards(mdContent: string): MdCard[] {
-    return extractMdCardsWithPosition(mdContent).map(result => result.card);
+export function extractMdCards(mdContent: string, sourceFile?: string): MdCard[] {
+    return extractMdCardsWithPosition(mdContent, sourceFile).map(result => result.card);
 }

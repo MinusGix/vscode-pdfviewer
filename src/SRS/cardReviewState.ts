@@ -1,5 +1,5 @@
 import { Card as FSRSCard, createEmptyCard, FSRS } from 'ts-fsrs';
-import { workspace, Uri } from 'vscode';
+import { workspace, Uri, window } from 'vscode';
 import { MdCard } from './card';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -14,7 +14,7 @@ interface StoredCardState {
 export class CardReviewState {
     private states: Map<string, StoredCardState> = new Map();
     private fsrs: FSRS;
-    private storageFile: string;
+    private readonly storageFile: string;
 
     constructor(workspaceRoot: string) {
         this.fsrs = new FSRS({});
@@ -35,17 +35,23 @@ export class CardReviewState {
                 const storedStates: StoredCardState[] = JSON.parse(data);
 
                 for (const state of storedStates) {
+                    if (!state.cardId) continue; // Skip invalid states
+
                     // Reconstruct Date objects from stored strings
                     const fsrsCard = state.fsrsCard;
-                    fsrsCard.due = new Date(fsrsCard.due);
-                    if (fsrsCard.last_review) {
-                        fsrsCard.last_review = new Date(fsrsCard.last_review);
+                    if (fsrsCard) {
+                        fsrsCard.due = new Date(fsrsCard.due);
+                        if (fsrsCard.last_review) {
+                            fsrsCard.last_review = new Date(fsrsCard.last_review);
+                        }
+                        this.states.set(state.cardId, state);
                     }
-                    this.states.set(state.cardId, state);
                 }
             }
         } catch (error) {
-            console.error('Failed to load card states:', error);
+            window.showErrorMessage(`Failed to load card states: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            // Initialize with empty state if loading fails
+            this.states = new Map();
         }
     }
 
@@ -54,7 +60,9 @@ export class CardReviewState {
             const storedStates: StoredCardState[] = Array.from(this.states.values());
             fs.writeFileSync(this.storageFile, JSON.stringify(storedStates, null, 2));
         } catch (error) {
-            console.error('Failed to save card states:', error);
+            const errorMessage = `Failed to save card states: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            window.showErrorMessage(errorMessage);
+            throw new Error(errorMessage);
         }
     }
 
@@ -68,7 +76,9 @@ export class CardReviewState {
             if (existingState.deleted) {
                 // If the card was previously deleted, restore it
                 delete existingState.deleted;
-                this.saveState();
+                this.saveState().catch(error => {
+                    window.showWarningMessage(`Failed to save state after restoring card: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                });
             }
             return existingState.fsrsCard;
         }
@@ -76,7 +86,9 @@ export class CardReviewState {
         const now = new Date();
         const newFsrsCard = createEmptyCard(now);
         this.states.set(card.id, { cardId: card.id, fsrsCard: newFsrsCard });
-        this.saveState();
+        this.saveState().catch(error => {
+            window.showWarningMessage(`Failed to save state after creating new card: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        });
         return newFsrsCard;
     }
 
@@ -84,7 +96,10 @@ export class CardReviewState {
         const existingState = this.states.get(cardId);
         if (existingState) {
             existingState.fsrsCard = newState;
-            this.saveState();
+            existingState.lastReviewDate = new Date().toISOString();
+            this.saveState().catch(error => {
+                window.showWarningMessage(`Failed to save state after updating card: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            });
         }
     }
 
@@ -102,7 +117,9 @@ export class CardReviewState {
         const state = this.states.get(cardId);
         if (state) {
             state.deleted = true;
-            this.saveState();
+            this.saveState().catch(error => {
+                window.showWarningMessage(`Failed to save state after marking card as deleted: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            });
         }
     }
 

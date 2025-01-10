@@ -69,6 +69,18 @@ export class CardReviewView {
                         await this.showAnswer();
                     }
                     break;
+                case 'jumpToSource':
+                    if (this.currentCard?.sourceFile && this.currentCard?.sourceLine) {
+                        const uri = vscode.Uri.file(this.currentCard.sourceFile);
+                        const position = new vscode.Position(this.currentCard.sourceLine - 1, 0);
+                        const selection = new vscode.Selection(position, position);
+
+                        // Open the file and reveal the line
+                        await vscode.window.showTextDocument(uri, {
+                            selection,
+                        });
+                    }
+                    break;
             }
         });
 
@@ -150,6 +162,28 @@ export class CardReviewView {
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
+                    position: relative;
+                }
+                .source-button {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    background: transparent;
+                    border: none;
+                    cursor: pointer;
+                    color: var(--vscode-textLink-foreground);
+                    opacity: 0.7;
+                    transition: opacity 0.2s;
+                    font-size: 1.2rem;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                }
+                .source-button:hover {
+                    opacity: 1;
+                    background: var(--vscode-button-hoverBackground);
+                }
+                .source-button[disabled] {
+                    display: none;
                 }
                 .content {
                     font-size: 1.2rem;
@@ -264,6 +298,7 @@ export class CardReviewView {
         </head>
         <body>
             <div class="card">
+                <button class="source-button" onclick="jumpToSource()" id="source-button" disabled>📄</button>
                 <div class="content" id="content">
                     Loading...
                 </div>
@@ -305,11 +340,20 @@ export class CardReviewView {
                     });
                 }
 
+                function jumpToSource() {
+                    vscode.postMessage({
+                        type: 'jumpToSource'
+                    });
+                }
+
                 window.addEventListener('message', event => {
                     const message = event.data;
                     switch (message.type) {
                         case 'update':
                             document.getElementById('content').innerHTML = message.content;
+                            // Update source button visibility
+                            const sourceButton = document.getElementById('source-button');
+                            sourceButton.disabled = !message.hasSource;
                             // Typeset the math after updating content
                             if (window.MathJax) {
                                 MathJax.typesetPromise().catch((err) => console.error('MathJax error:', err));
@@ -354,11 +398,68 @@ export class CardReviewView {
         </html>`;
     }
 
+    private async showCard(card: MdCard) {
+        this.currentCard = card;
+        this.showingAnswer = false;
+
+        // Convert markdown to HTML for the front of the card
+        const content = marked.parse(card.front);
+
+        // Update the webview content
+        this.panel.webview.postMessage({
+            type: 'update',
+            content,
+            hasSource: !!(card.sourceFile && card.sourceLine),
+            intervals: {},
+            enableButtons: false
+        });
+    }
+
+    private async showAnswer() {
+        if (!this.currentCard) return;
+
+        this.showingAnswer = true;
+
+        // Convert markdown to HTML for both front and back of the card
+        const content = marked.parse(this.currentCard.front + '\n\n---\n\n' + this.currentCard.back);
+
+        // Get scheduling information
+        const intervals: { [key: number]: string } = {};
+        if (this.currentCard.id) {
+            const state = this.cardManager.getCardReviewState(this.currentCard);
+            const fsrs = this.cardManager.getFSRS();
+            const now = new Date();
+            const scheduling = fsrs.repeat(state, now);
+
+            // Update interval information for each button
+            for (const item of scheduling) {
+                intervals[item.log.rating] = this.formatTimeInterval(item.card.due);
+            }
+        }
+
+        // Update the webview content with all necessary information
+        this.panel.webview.postMessage({
+            type: 'update',
+            content,
+            hasSource: !!(this.currentCard.sourceFile && this.currentCard.sourceLine),
+            intervals,
+            enableButtons: true
+        });
+    }
+
     private async showNextCard() {
         const dueCards = this.cardManager.getDueCards();
-        this.currentCard = dueCards.length > 0 ? dueCards[0] : undefined;
-        this.showingAnswer = false;
-        await this.displayCurrentCard();
+        if (dueCards.length > 0) {
+            await this.showCard(dueCards[0]);
+        } else {
+            this.panel.webview.postMessage({
+                type: 'update',
+                content: marked.parse('No more cards due for review!'),
+                hasSource: false,
+                intervals: {},
+                enableButtons: false
+            });
+        }
     }
 
     private async restoreCardState() {
@@ -414,11 +515,6 @@ export class CardReviewView {
             type: 'rate',
             rating
         });
-    }
-
-    private async showAnswer() {
-        this.showingAnswer = true;
-        await this.displayCurrentCard();
     }
 
     public static show(extensionRoot: vscode.Uri, cardManager: CardManager) {

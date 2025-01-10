@@ -16,7 +16,7 @@ export class MdParser {
         try {
             const document = await vscode.workspace.openTextDocument(uri);
             const mdContent = document.getText();
-            const results = extractMdCardsWithPosition(mdContent);
+            const results = extractMdCardsWithPosition(mdContent, uri.fsPath);
             return {
                 cards: results.map(r => r.card),
                 positions: results.map(r => r.position)
