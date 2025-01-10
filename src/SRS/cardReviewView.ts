@@ -32,6 +32,25 @@ export class CardReviewView {
 
         this.panel.webview.html = this.getWebviewContent();
 
+        // Subscribe to card updates
+        this.cardManager.onDidUpdateCards(event => {
+            // If we have a current card and it's in the updated file
+            if (this.currentCard?.sourceFile && event.uri.fsPath === this.currentCard.sourceFile) {
+                // Find the updated version of our current card
+                const updatedCards = this.cardManager.getCardsFromFile(event.uri);
+                const updatedCard = updatedCards?.find(card => card.id === this.currentCard?.id);
+
+                if (updatedCard) {
+                    // Update our current card and refresh the display
+                    this.currentCard = updatedCard;
+                    this.displayCurrentCard();
+                } else if (event.type === 'delete') {
+                    // If the card was deleted, move to the next card
+                    this.showNextCard();
+                }
+            }
+        });
+
         // Focus the webview when it's shown
         this.panel.onDidChangeViewState(e => {
             if (e.webviewPanel.visible) {
