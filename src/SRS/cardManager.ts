@@ -19,6 +19,7 @@ export class CardManager implements vscode.Disposable {
     private readonly _onDidUpdateCards = new vscode.EventEmitter<CardUpdateEvent>();
     public readonly onDidUpdateCards = this._onDidUpdateCards.event;
     private reviewState: CardReviewState;
+    private statusBarItem: vscode.StatusBarItem;
 
     private constructor() {
         this.cardsByFile = new Map();
@@ -31,6 +32,13 @@ export class CardManager implements vscode.Disposable {
             throw new Error('No workspace folder found');
         }
         this.reviewState = new CardReviewState(workspaceRoot);
+
+        // Create status bar item
+        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+        this.statusBarItem.command = 'lattice.reviewCards';
+        this.statusBarItem.tooltip = 'Click to start reviewing cards';
+        this.updateStatusBar();
+        this.statusBarItem.show();
 
         // Watch for file changes
         const watcher = vscode.workspace.createFileSystemWatcher('**/*.md');
@@ -48,6 +56,7 @@ export class CardManager implements vscode.Disposable {
                         uri,
                         cards: cardsWithIds
                     });
+                    this.updateStatusBar();
                 }
             }
 
@@ -62,6 +71,7 @@ export class CardManager implements vscode.Disposable {
                             type: 'delete',
                             uri
                         });
+                        this.updateStatusBar();
                     }
                 }
             }
@@ -109,6 +119,7 @@ export class CardManager implements vscode.Disposable {
                     cards: cardsWithIds
                 });
             }
+            this.updateStatusBar();
         } catch (error) {
             console.error('Failed to initialize CardManager:', error);
         } finally {
@@ -180,6 +191,7 @@ export class CardManager implements vscode.Disposable {
                     uri,
                     cards: cardsWithIds
                 });
+                this.updateStatusBar();
             } else if (existingCards) {
                 // If there were cards before but now there aren't any,
                 // treat it as a deletion
@@ -188,6 +200,7 @@ export class CardManager implements vscode.Disposable {
                     type: 'delete',
                     uri
                 });
+                this.updateStatusBar();
             }
         } catch (error) {
             console.error(`Failed to handle file change: ${uri.fsPath}`, error);
@@ -247,6 +260,7 @@ export class CardManager implements vscode.Disposable {
                 type: 'delete',
                 uri
             });
+            this.updateStatusBar();
         }
     }
 
@@ -311,6 +325,7 @@ difficulty: medium
      */
     public updateCardReviewState(cardId: string, newState: FSRSCard): void {
         this.reviewState.updateState(cardId, newState);
+        this.updateStatusBar();
     }
 
     /**
@@ -335,9 +350,43 @@ difficulty: medium
      */
     public dispose(): void {
         this.disposables.forEach(d => d.dispose());
+        this.statusBarItem.dispose();
         this.disposables = [];
         this.cardsByFile.clear();
         this.initialized = false;
         CardManager.instance = undefined!;
+    }
+
+    private updateStatusBar(): void {
+        const dueCards = this.getDueCards();
+        const threshold: number = vscode.workspace.getConfiguration('lattice.cards').get('statusBarColorThreshold', 5);
+
+        if (dueCards.length > 0) {
+            this.statusBarItem.text = `$(notebook) ${dueCards.length} card${dueCards.length === 1 ? '' : 's'} due`;
+
+            // Only apply colors if threshold is not -1
+            if (threshold !== -1) {
+                const totalCards = this.getAllCards().length;
+                const dueRatio = dueCards.length / Math.max(threshold, totalCards * 0.05);  // Use whichever is larger: threshold or 5% of total cards
+
+                if (dueRatio <= 1) {
+                    // Up to threshold: info color (blue)
+                    this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.infoBackground');
+                } else if (dueRatio <= 2) {
+                    // Between 1x and 2x threshold: warning color (yellow)
+                    this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                } else {
+                    // Above 2x threshold: error color (red)
+                    this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+                }
+            } else {
+                // Reset color if threshold is -1
+                this.statusBarItem.backgroundColor = undefined;
+            }
+        } else {
+            this.statusBarItem.text = '$(notebook) No cards due';
+            this.statusBarItem.backgroundColor = undefined;
+        }
+        this.statusBarItem.show();
     }
 } 

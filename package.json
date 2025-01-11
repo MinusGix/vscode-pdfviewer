@@ -223,6 +223,11 @@
           "markdownDescription": "Include a link to the source file when transferring notes.",
           "type": "boolean",
           "default": true
+        },
+        "lattice.cards.statusBarColorThreshold": {
+          "markdownDescription": "Number of due cards that triggers status bar color changes. Set to -1 to disable coloring. When enabled, color changes from green to yellow to red as the number of due cards increases.",
+          "type": "number",
+          "default": 5
         }
       }
     },
