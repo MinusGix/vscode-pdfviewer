@@ -114,9 +114,17 @@ export class CardListView {
                     gap: 2rem;
                     margin: 0;
                     box-sizing: border-box;
+                    width: 100%;
+                    max-width: 100vw;
+                }
+                #cards {
+                    width: 100%;
+                    max-width: calc(100vw - 4rem);
                 }
                 .card {
+                    box-sizing: border-box;
                     width: 100%;
+                    max-width: 100%;
                     background: var(--vscode-editor-background);
                     border: 1px solid var(--vscode-widget-border);
                     border-radius: 8px;
