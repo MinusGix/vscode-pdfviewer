@@ -4,6 +4,7 @@ import { CardManager } from './cardManager';
 import { Card as FSRSCard, Rating } from 'ts-fsrs';
 import { marked } from 'marked';
 import { Eye, EyeOff, ExternalLink } from 'lucide-static';
+import { sharedStyles, mathJaxConfig } from './styles';
 
 // Configure marked to preserve line breaks
 marked.setOptions({
@@ -140,137 +141,40 @@ export class CardReviewView {
             <title>Card Review</title>
             <!-- Add MathJax -->
             <script>
-                MathJax = {
-                    tex: {
-                        inlineMath: [['$', '$'], ['\\(', '\\)']],
-                        displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                        processEscapes: true,
-                    },
-                    svg: {
-                        fontCache: 'global'
-                    },
-                    options: {
-                        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-                    }
-                };
+                ${mathJaxConfig}
             </script>
             <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
             <style>
+                ${sharedStyles}
+
                 body {
-                    font-family: var(--vscode-font-family);
-                    color: var(--vscode-editor-foreground);
-                    background-color: var(--vscode-editor-background);
-                    padding: 2rem;
-                    display: flex;
-                    flex-direction: column;
                     align-items: center;
                     height: 100vh;
-                    margin: 0;
-                    box-sizing: border-box;
                 }
+
                 .card {
                     width: 100%;
                     max-width: 600px;
                     min-height: 300px;
-                    background: var(--vscode-editor-background);
-                    border: 1px solid var(--vscode-widget-border);
-                    border-radius: 8px;
-                    padding: 2rem;
-                    margin-bottom: 2rem;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    position: relative;
+                    margin-bottom: 2rem;
                 }
-                .icon-button {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: transparent;
-                    border: none;
-                    cursor: pointer;
-                    color: var(--vscode-textLink-foreground);
-                    opacity: 0.7;
-                    transition: all 0.2s;
-                    padding: 6px;
-                    border-radius: 4px;
-                    line-height: 0;
-                }
-                .icon-button:hover {
-                    opacity: 1;
-                    background: var(--vscode-button-hoverBackground);
-                }
-                .icon-button svg {
-                    width: 16px;
-                    height: 16px;
-                    stroke-width: 2;
-                }
-                .source-button {
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                }
+
                 .content {
                     font-size: 1.2rem;
                     line-height: 1.6;
-                    margin: 1rem 0;
                     width: 100%;
                 }
-                /* Markdown styles */
-                .content h1, .content h2, .content h3, .content h4, .content h5, .content h6 {
-                    color: var(--vscode-editor-foreground);
-                    margin-top: 1em;
-                    margin-bottom: 0.5em;
-                }
-                .content p {
-                    margin: 0.5em 0;
-                }
-                .content ul, .content ol {
-                    padding-left: 2em;
-                    margin: 0.5em 0;
-                }
-                .content code {
-                    font-family: var(--vscode-editor-font-family);
-                    background: var(--vscode-textCodeBlock-background);
-                    padding: 0.2em 0.4em;
-                    border-radius: 3px;
-                }
-                .content pre {
-                    background: var(--vscode-textCodeBlock-background);
-                    padding: 1em;
-                    border-radius: 4px;
-                    overflow-x: auto;
-                }
-                .content pre code {
-                    background: none;
-                    padding: 0;
-                }
-                .content blockquote {
-                    border-left: 4px solid var(--vscode-textBlockQuote-border);
-                    margin: 0.5em 0;
-                    padding-left: 1em;
-                    color: var(--vscode-textBlockQuote-foreground);
-                }
-                .content img {
-                    max-width: 100%;
-                    height: auto;
-                }
-                /* MathJax styles */
-                .content .math {
-                    overflow-x: auto;
-                    max-width: 100%;
-                    padding: 0.5em 0;
-                }
-                .content .math svg {
-                    max-width: 100%;
-                }
+
                 .buttons {
                     display: flex;
                     gap: 1rem;
                     margin-top: 2rem;
                 }
+
                 button {
                     padding: 0.5rem 1rem;
                     border: none;
@@ -283,6 +187,7 @@ export class CardReviewView {
                     align-items: center;
                     position: relative;
                 }
+
                 button::after {
                     content: attr(data-shortcut);
                     position: absolute;
@@ -297,18 +202,22 @@ export class CardReviewView {
                     border-radius: 3px;
                     white-space: nowrap;
                 }
+
                 button:hover::after {
                     opacity: 0.8;
                 }
+
                 .interval {
                     font-size: 0.8rem;
                     opacity: 0.7;
                     margin-top: 0.2rem;
                 }
+
                 .again { background: var(--vscode-errorForeground); color: white; }
                 .hard { background: var(--vscode-editorWarning-foreground); color: white; }
                 .good { background: var(--vscode-testing-iconPassed); color: white; }
                 .easy { background: var(--vscode-charts-green); color: white; }
+
                 .show-answer { 
                     display: flex;
                     align-items: center;
@@ -317,15 +226,18 @@ export class CardReviewView {
                     color: var(--vscode-button-foreground);
                     margin-bottom: 1rem;
                 }
+
                 .show-answer svg {
                     width: 16px;
                     height: 16px;
                     stroke-width: 2;
                 }
+
                 button:disabled {
                     opacity: 0.5;
                     cursor: not-allowed;
                 }
+
                 button:disabled::after {
                     display: none;
                 }

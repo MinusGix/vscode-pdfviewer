@@ -3,6 +3,7 @@ import { MdCard } from './card';
 import { CardManager } from './cardManager';
 import { marked } from 'marked';
 import { Eye, EyeOff, ExternalLink, Square, CheckSquare } from 'lucide-static';
+import { sharedStyles, mathJaxConfig } from './styles';
 
 // Configure marked to preserve line breaks
 marked.setOptions({
@@ -88,157 +89,69 @@ export class CardListView {
             <title>Card List</title>
             <!-- Add MathJax -->
             <script>
-                MathJax = {
-                    tex: {
-                        inlineMath: [['$', '$'], ['\\(', '\\)']],
-                        displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                        processEscapes: true,
-                    },
-                    svg: {
-                        fontCache: 'global'
-                    },
-                    options: {
-                        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-                    }
-                };
+                ${mathJaxConfig}
             </script>
             <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
             <style>
+                ${sharedStyles}
+
+                /* Card List specific styles */
                 body {
-                    font-family: var(--vscode-font-family);
-                    color: var(--vscode-editor-foreground);
-                    background-color: var(--vscode-editor-background);
-                    padding: 2rem;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 2rem;
-                    margin: 0;
-                    box-sizing: border-box;
                     width: 100%;
                     max-width: 100vw;
+                    gap: 2rem;
                 }
+
                 #cards {
                     width: 100%;
                     max-width: calc(100vw - 4rem);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
                 }
+
                 .card {
-                    box-sizing: border-box;
                     width: 100%;
                     max-width: 100%;
-                    background: var(--vscode-editor-background);
-                    border: 1px solid var(--vscode-widget-border);
-                    border-radius: 8px;
-                    padding: 1rem;
-                    padding-left: 2.5rem;
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-                    position: relative;
+                    padding: 1rem !important;
+                    padding-left: 2.5rem !important;
+                    box-sizing: border-box;
                 }
+
                 .card.selected {
                     border-color: var(--vscode-focusBorder);
                     background: var(--vscode-editor-selectionBackground);
                 }
-                .icon-button {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: transparent;
-                    border: none;
-                    cursor: pointer;
-                    color: var(--vscode-textLink-foreground);
-                    opacity: 0.7;
-                    transition: all 0.2s;
-                    padding: 6px;
-                    border-radius: 4px;
-                    line-height: 0;
-                }
-                .icon-button:hover {
-                    opacity: 1;
-                    background: var(--vscode-button-hoverBackground);
-                }
-                .icon-button svg {
-                    width: 16px;
-                    height: 16px;
-                    stroke-width: 2;
-                }
-                .source-button {
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                }
+
                 .toggle-answer {
                     position: absolute;
                     bottom: 10px;
                     left: 10px;
                 }
+
                 .content {
-                    font-size: 1.1rem;
-                    line-height: 1.5;
-                    margin: 1rem 0;
                     padding-bottom: 2.5rem;
                 }
+
                 .answer {
                     margin-top: 1rem;
                     padding-top: 1rem;
                     border-top: 1px solid var(--vscode-widget-border);
                 }
+
                 .card-meta {
                     font-size: 0.9rem;
                     color: var(--vscode-descriptionForeground);
                     margin-bottom: 0.5rem;
                     padding-right: 2rem;
                 }
-                /* Markdown styles */
-                .content h1, .content h2, .content h3, .content h4, .content h5, .content h6 {
-                    color: var(--vscode-editor-foreground);
-                    margin-top: 1em;
-                    margin-bottom: 0.5em;
-                }
-                .content p {
-                    margin: 0.5em 0;
-                }
-                .content ul, .content ol {
-                    padding-left: 2em;
-                    margin: 0.5em 0;
-                }
-                .content code {
-                    font-family: var(--vscode-editor-font-family);
-                    background: var(--vscode-textCodeBlock-background);
-                    padding: 0.2em 0.4em;
-                    border-radius: 3px;
-                }
-                .content pre {
-                    background: var(--vscode-textCodeBlock-background);
-                    padding: 1em;
-                    border-radius: 4px;
-                    overflow-x: auto;
-                }
-                .content pre code {
-                    background: none;
-                    padding: 0;
-                }
-                .content blockquote {
-                    border-left: 4px solid var(--vscode-textBlockQuote-border);
-                    margin: 0.5em 0;
-                    padding-left: 1em;
-                    color: var(--vscode-textBlockQuote-foreground);
-                }
-                .content img {
-                    max-width: 100%;
-                    height: auto;
-                }
-                .content .math {
-                    overflow-x: auto;
-                    max-width: 100%;
-                    padding: 0.5em 0;
-                }
-                .content .math svg {
-                    max-width: 100%;
-                }
+
                 .checkbox-button {
                     position: absolute;
                     top: 10px;
                     left: 10px;
                 }
+
                 .review-info {
                     position: absolute;
                     bottom: 10px;
@@ -249,6 +162,7 @@ export class CardListView {
                     display: flex;
                     gap: 1rem;
                 }
+
                 .review-info span {
                     white-space: nowrap;
                 }
