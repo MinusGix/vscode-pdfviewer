@@ -14,11 +14,12 @@ marked.setOptions({
 
 export class CardReviewView {
     public static readonly viewType = 'lattice.cardReview';
+    private static instance: CardReviewView;
     private panel: vscode.WebviewPanel;
     private currentCard?: MdCard;
     private showingAnswer: boolean = false;
 
-    constructor(
+    private constructor(
         private readonly extensionRoot: vscode.Uri,
         private readonly cardManager: CardManager
     ) {
@@ -28,7 +29,8 @@ export class CardReviewView {
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                localResourceRoots: [extensionRoot]
+                localResourceRoots: [extensionRoot],
+                retainContextWhenHidden: true  // Keep the webview's content when hidden
             }
         );
 
@@ -51,6 +53,11 @@ export class CardReviewView {
                     this.showNextCard();
                 }
             }
+        });
+
+        // Handle panel disposal
+        this.panel.onDidDispose(() => {
+            CardReviewView.instance = undefined!;
         });
 
         // Focus the webview when it's shown
@@ -466,6 +473,12 @@ export class CardReviewView {
     }
 
     public static show(extensionRoot: vscode.Uri, cardManager: CardManager) {
-        new CardReviewView(extensionRoot, cardManager);
+        if (CardReviewView.instance) {
+            // If we have an existing instance, just reveal it
+            CardReviewView.instance.panel.reveal();
+        } else {
+            // Otherwise create a new instance
+            CardReviewView.instance = new CardReviewView(extensionRoot, cardManager);
+        }
     }
 } 
