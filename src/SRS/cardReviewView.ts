@@ -3,6 +3,7 @@ import { MdCard } from './card';
 import { CardManager } from './cardManager';
 import { Card as FSRSCard, Rating } from 'ts-fsrs';
 import { marked } from 'marked';
+import { Eye, EyeOff, ExternalLink } from 'lucide-static';
 
 // Configure marked to preserve line breaks
 marked.setOptions({
@@ -183,26 +184,33 @@ export class CardReviewView {
                     justify-content: center;
                     position: relative;
                 }
-                .source-button {
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
+                .icon-button {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                     background: transparent;
                     border: none;
                     cursor: pointer;
                     color: var(--vscode-textLink-foreground);
                     opacity: 0.7;
-                    transition: opacity 0.2s;
-                    font-size: 1.2rem;
-                    padding: 4px 8px;
+                    transition: all 0.2s;
+                    padding: 6px;
                     border-radius: 4px;
+                    line-height: 0;
                 }
-                .source-button:hover {
+                .icon-button:hover {
                     opacity: 1;
                     background: var(--vscode-button-hoverBackground);
                 }
-                .source-button[disabled] {
-                    display: none;
+                .icon-button svg {
+                    width: 16px;
+                    height: 16px;
+                    stroke-width: 2;
+                }
+                .source-button {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
                 }
                 .content {
                     font-size: 1.2rem;
@@ -302,9 +310,17 @@ export class CardReviewView {
                 .good { background: var(--vscode-testing-iconPassed); color: white; }
                 .easy { background: var(--vscode-charts-green); color: white; }
                 .show-answer { 
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
                     background: var(--vscode-button-background); 
                     color: var(--vscode-button-foreground);
                     margin-bottom: 1rem;
+                }
+                .show-answer svg {
+                    width: 16px;
+                    height: 16px;
+                    stroke-width: 2;
                 }
                 button:disabled {
                     opacity: 0.5;
@@ -317,13 +333,14 @@ export class CardReviewView {
         </head>
         <body>
             <div class="card">
-                <button class="source-button" onclick="jumpToSource()" id="source-button" disabled>📄</button>
+                <button class="icon-button source-button" onclick="jumpToSource()" id="source-button" disabled title="Jump to source">${ExternalLink}</button>
                 <div class="content" id="content">
                     Loading...
                 </div>
             </div>
             <button class="show-answer" onclick="showAnswer()" id="show-answer-button" data-shortcut="Space">
-                Show Answer
+                ${Eye}
+                <span>Show Answer</span>
             </button>
             <div class="buttons" id="buttons">
                 <button class="again" onclick="rate(1)" id="button-1" disabled data-shortcut="1">
@@ -385,8 +402,8 @@ export class CardReviewView {
                                 button.disabled = !message.enableButtons;
                             }
                             // Update show answer button
-                            document.getElementById('show-answer-button').style.display = 
-                                message.enableButtons ? 'none' : 'block';
+                            const showAnswerButton = document.getElementById('show-answer-button');
+                            showAnswerButton.style.display = message.enableButtons ? 'none' : 'flex';
                             break;
                         case 'focus':
                             // Focus the webview

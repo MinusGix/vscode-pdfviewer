@@ -6,6 +6,7 @@ import { DocumentTitleManager } from './documentTitles';
 import { CardManager } from './SRS/cardManager';
 import { MdParser } from './SRS/mdParser';
 import { CardReviewView } from './SRS/cardReviewView';
+import { CardListView } from './SRS/cardListView';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
@@ -198,6 +199,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand('lattice.reviewCards', () => {
       CardReviewView.show(context.extensionUri, cardManager);
+    })
+  );
+
+  // Register card list command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.listCards', () => {
+      CardListView.show(context.extensionUri, cardManager);
     })
   );
 
