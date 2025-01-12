@@ -1,4 +1,4 @@
-import { Card as FSRSCard, createEmptyCard, FSRS } from 'ts-fsrs';
+import { Card as FSRSCard, createEmptyCard, FSRS, generatorParameters, default_request_retention } from 'ts-fsrs';
 import { workspace, Uri, window } from 'vscode';
 import { MdCard } from './card';
 import * as path from 'path';
@@ -17,7 +17,10 @@ export class CardReviewState {
     private readonly storageFile: string;
 
     constructor(workspaceRoot: string) {
-        this.fsrs = new FSRS({});
+        const params = generatorParameters({
+            request_retention: Math.min(Math.max(workspace.getConfiguration('lattice.cards').get('fsrsRequestRetention', default_request_retention), 0.0), 1.0),
+        });
+        this.fsrs = new FSRS(params);
         this.storageFile = path.join(workspaceRoot, '.vscode', 'lattice.cards.json');
         this.loadState();
     }
