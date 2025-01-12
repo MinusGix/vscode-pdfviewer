@@ -1,0 +1,31 @@
+<div class="card">
+    <button class="icon-button source-button" onclick="jumpToSource()" id="source-button" disabled
+        title="Jump to source">${ExternalLink}</button>
+    <div class="content" id="content">
+        <div id="front-content">Loading...</div>
+        <hr class="separator" id="separator" style="display: none;">
+        <div id="back-content" style="display: none;"></div>
+    </div>
+</div>
+<button class="show-answer" onclick="showAnswer()" id="show-answer-button" data-shortcut="Space">
+    ${Eye}
+    <span>Show Answer</span>
+</button>
+<div class="buttons" id="buttons">
+    <button class="again" onclick="rate(1)" id="button-1" disabled data-shortcut="1">
+        <span>Again</span>
+        <span class="interval" id="interval-1"></span>
+    </button>
+    <button class="hard" onclick="rate(2)" id="button-2" disabled data-shortcut="2">
+        <span>Hard</span>
+        <span class="interval" id="interval-2"></span>
+    </button>
+    <button class="good" onclick="rate(3)" id="button-3" disabled data-shortcut="3">
+        <span>Good</span>
+        <span class="interval" id="interval-3"></span>
+    </button>
+    <button class="easy" onclick="rate(4)" id="button-4" disabled data-shortcut="4">
+        <span>Easy</span>
+        <span class="interval" id="interval-4"></span>
+    </button>
+</div>

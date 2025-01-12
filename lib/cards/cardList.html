@@ -1,0 +1,38 @@
+<div class="filters">
+    <div class="filter-group">
+        <select id="due-filter" onchange="changeDueFilter(this.value)">
+            <option value="all">All cards</option>
+            <option value="due">Due</option>
+            <option value="not-due">Not due</option>
+        </select>
+    </div>
+    <div class="sort-group">
+        <label class="sort-option">
+            <input type="radio" name="sort" value="next-review-asc" onchange="changeSort(this.value)" />
+            Next review ↑
+        </label>
+        <label class="sort-option">
+            <input type="radio" name="sort" value="next-review-desc" onchange="changeSort(this.value)" />
+            Next review ↓
+        </label>
+        <label class="sort-option">
+            <input type="radio" name="sort" value="last-review-asc" onchange="changeSort(this.value)" />
+            Last review ↑
+        </label>
+        <label class="sort-option">
+            <input type="radio" name="sort" value="last-review-desc" onchange="changeSort(this.value)" />
+            Last review ↓
+        </label>
+        <label class="sort-option">
+            <input type="radio" name="sort" value="source-asc" onchange="changeSort(this.value)" />
+            Source ↑
+        </label>
+        <label class="sort-option">
+            <input type="radio" name="sort" value="source-desc" onchange="changeSort(this.value)" />
+            Source ↓
+        </label>
+    </div>
+</div>
+<div id="cards">
+    Loading cards...
+</div>

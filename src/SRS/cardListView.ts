@@ -3,7 +3,8 @@ import { MdCard } from './card';
 import { CardManager } from './cardManager';
 import { marked } from 'marked';
 import { Eye, EyeOff, ExternalLink, Square, CheckSquare } from 'lucide-static';
-import { sharedStyles, mathJaxConfig } from './styles';
+import { getStyles, mathJaxConfig } from './styles';
+import * as fs from 'fs';
 
 // Configure marked to preserve line breaks
 marked.setOptions({
@@ -114,258 +115,35 @@ export class CardListView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Card List</title>
-            <!-- Add MathJax -->
             <script>
                 ${mathJaxConfig}
             </script>
             <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+            <script src="${this.panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, 'lib', 'purify.min.js'))}"></script>
             <style>
-                ${sharedStyles}
-
-                /* Card List specific styles */
-                body {
-                    width: 100%;
-                    max-width: 100vw;
-                    gap: 2rem;
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }
-
-                .filters {
-                    padding: 1rem;
-                    display: flex;
-                    gap: 2rem;
-                    align-items: center;
-                    background: var(--vscode-editor-background);
-                    border-bottom: 1px solid var(--vscode-widget-border);
-                    position: sticky;
-                    top: 0;
-                    z-index: 100;
-                    user-select: none;
-                    box-sizing: border-box;
-                }
-
-                .filter-group {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-
-                .sort-group {
-                    display: flex;
-                    align-items: center;
-                    gap: 1.5rem;
-                }
-
-                .sort-option {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.25rem;
-                    cursor: pointer;
-                }
-
-                .sort-option input[type="radio"] {
-                    margin: 0;
-                }
-
-                .sort-option:hover {
-                    color: var(--vscode-textLink-foreground);
-                }
-
-                .filter-group select {
-                    background: var(--vscode-dropdown-background);
-                    color: var(--vscode-dropdown-foreground);
-                    border: 1px solid var(--vscode-dropdown-border);
-                    padding: 2px 4px;
-                    border-radius: 2px;
-                }
-
-                .filter-group select:focus {
-                    outline-color: var(--vscode-focusBorder);
-                }
-
-                #cards {
-                    width: 100%;
-                    max-width: 100%;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                    padding: 2rem;
-                    box-sizing: border-box;
-                }
-
-                .card {
-                    width: 100%;
-                    max-width: 100%;
-                    padding: 1rem !important;
-                    padding-left: 2.5rem !important;
-                    box-sizing: border-box;
-                    margin: 0;
-                }
-
-                .card.selected {
-                    border-color: var(--vscode-focusBorder);
-                    background: var(--vscode-editor-selectionBackground);
-                }
-
-                .toggle-answer {
-                    position: absolute;
-                    bottom: 10px;
-                    left: 10px;
-                }
-
-                .content {
-                    padding-bottom: 2.5rem;
-                }
-
-                .answer {
-                    margin-top: 1rem;
-                    padding-top: 1rem;
-                    border-top: 1px solid var(--vscode-widget-border);
-                }
-
-                .card-meta {
-                    font-size: 0.9rem;
-                    color: var(--vscode-descriptionForeground);
-                    margin-bottom: 0.5rem;
-                    padding-right: 2rem;
-                }
-
-                .checkbox-button {
-                    position: absolute;
-                    top: 10px;
-                    left: 10px;
-                }
-
-                .review-info {
-                    position: absolute;
-                    bottom: 10px;
-                    right: 10px;
-                    font-size: 0.8rem;
-                    color: var(--vscode-descriptionForeground);
-                    opacity: 0.8;
-                    display: flex;
-                    gap: 1rem;
-                }
-
-                .review-info span {
-                    white-space: nowrap;
-                }
+                ${getStyles(this.extensionRoot, 'cardList')}
             </style>
         </head>
         <body>
-            <div class="filters">
-                <div class="filter-group">
-                    <select id="due-filter" onchange="changeDueFilter(this.value)">
-                        <option value="all">All cards</option>
-                        <option value="due">Due</option>
-                        <option value="not-due">Not due</option>
-                    </select>
-                </div>
-                <div class="sort-group">
-                    <label class="sort-option">
-                        <input type="radio" name="sort" value="next-review-asc" onchange="changeSort(this.value)" />
-                        Next review ↑
-                    </label>
-                    <label class="sort-option">
-                        <input type="radio" name="sort" value="next-review-desc" onchange="changeSort(this.value)" />
-                        Next review ↓
-                    </label>
-                    <label class="sort-option">
-                        <input type="radio" name="sort" value="last-review-asc" onchange="changeSort(this.value)" />
-                        Last review ↑
-                    </label>
-                    <label class="sort-option">
-                        <input type="radio" name="sort" value="last-review-desc" onchange="changeSort(this.value)" />
-                        Last review ↓
-                    </label>
-                    <label class="sort-option">
-                        <input type="radio" name="sort" value="source-asc" onchange="changeSort(this.value)" />
-                        Source ↑
-                    </label>
-                    <label class="sort-option">
-                        <input type="radio" name="sort" value="source-desc" onchange="changeSort(this.value)" />
-                        Source ↓
-                    </label>
-                </div>
-            </div>
-            <div id="cards">
-                Loading cards...
-            </div>
-            <script>
-                const vscode = acquireVsCodeApi();
-
-                function changeDueFilter(value) {
-                    vscode.postMessage({
-                        type: 'changeDueFilter',
-                        value: value
-                    });
-                }
-
-                function toggleAnswer(cardId) {
-                    vscode.postMessage({
-                        type: 'toggleAnswer',
-                        cardId: cardId
-                    });
-                }
-
-                function toggleSelect(cardId, index, event) {
-                    vscode.postMessage({
-                        type: 'toggleSelect',
-                        cardId: cardId,
-                        index: index,
-                        shift: event.shiftKey
-                    });
-                }
-
-                function toggleSelectAll() {
-                    vscode.postMessage({
-                        type: 'toggleSelectAll'
-                    });
-                }
-
-                function jumpToSource(cardId) {
-                    vscode.postMessage({
-                        type: 'jumpToSource',
-                        cardId: cardId
-                    });
-                }
-
-                function changeSort(value) {
-                    vscode.postMessage({
-                        type: 'changeSort',
-                        value: value
-                    });
-                }
-
-                // Handle keyboard shortcuts
-                window.addEventListener('keydown', (e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-                        e.preventDefault();
-                        vscode.postMessage({
-                            type: 'toggleSelectAll'
-                        });
-                    }
-                });
-
-                window.addEventListener('message', event => {
-                    const message = event.data;
-                    switch (message.type) {
-                        case 'update':
-                            document.getElementById('cards').innerHTML = message.content;
-                            document.getElementById('due-filter').value = message.filters.showOnlyDue;
-                            document.querySelector('input[name="sort"][value="' + message.filters.sortBy + '"]').checked = true;
-                            // Typeset the math after updating content
-                            if (window.MathJax) {
-                                MathJax.typesetPromise().catch((err) => console.error('MathJax error:', err));
-                            }
-                            break;
-                    }
-                });
-            </script>
+            ${this.getCardListBody()}
+            <script src="${this.panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, 'lib', 'cards', 'shared.js'))}"></script>
+            <script src="${this.panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, 'lib', 'cards', 'cardList.js'))}"></script>
         </body>
         </html>`;
+    }
+
+    private getCardListBody(): string {
+        const bodyPath = vscode.Uri.joinPath(this.extensionRoot, 'lib', 'cards', 'cardList.html');
+        let content = fs.readFileSync(bodyPath.fsPath, 'utf8');
+
+        // Replace icon placeholders with actual icons
+        content = content.replace(/\${Eye}/g, Eye);
+        content = content.replace(/\${EyeOff}/g, EyeOff);
+        content = content.replace(/\${ExternalLink}/g, ExternalLink);
+        content = content.replace(/\${Square}/g, Square);
+        content = content.replace(/\${CheckSquare}/g, CheckSquare);
+
+        return content;
     }
 
     private refreshCards() {
@@ -459,10 +237,10 @@ export class CardListView {
                     ${card.type}${card.tags.length ? ` • ${card.tags.join(', ')}` : ''}
                 </div>
                 <div class="content">
-                    ${marked.parse(card.front)}
+                    <div class="front-content">${marked.parse(card.front)}</div>
                     ${showingAnswer ? `
                         <div class="answer">
-                            ${marked.parse(card.back)}
+                            <div class="back-content">${marked.parse(card.back)}</div>
                         </div>
                     ` : ''}
                 </div>

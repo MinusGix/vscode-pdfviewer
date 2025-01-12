@@ -4,7 +4,8 @@ import { CardManager } from './cardManager';
 import { Card as FSRSCard, Rating } from 'ts-fsrs';
 import { marked } from 'marked';
 import { Eye, EyeOff, ExternalLink } from 'lucide-static';
-import { sharedStyles, mathJaxConfig } from './styles';
+import { getStyles, mathJaxConfig } from './styles';
+import fs from 'fs';
 
 // Configure marked to preserve line breaks
 marked.setOptions({
@@ -17,7 +18,6 @@ export class CardReviewView {
     private static instance: CardReviewView;
     private panel: vscode.WebviewPanel;
     private currentCard?: MdCard;
-    private showingAnswer: boolean = false;
 
     private constructor(
         private readonly extensionRoot: vscode.Uri,
@@ -92,11 +92,6 @@ export class CardReviewView {
                         await this.showNextCard();
                     }
                     break;
-                case 'showAnswer':
-                    if (this.currentCard && !this.showingAnswer) {
-                        await this.showAnswer();
-                    }
-                    break;
                 case 'jumpToSource':
                     if (this.currentCard?.sourceFile && this.currentCard?.sourceLine) {
                         const uri = vscode.Uri.file(this.currentCard.sourceFile);
@@ -146,242 +141,45 @@ export class CardReviewView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Card Review</title>
-            <!-- Add MathJax -->
             <script>
                 ${mathJaxConfig}
             </script>
             <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+            <script src="${this.panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, 'lib', 'purify.min.js'))}"></script>
             <style>
-                ${sharedStyles}
-
-                body {
-                    align-items: center;
-                    height: 100vh;
-                }
-
-                .card {
-                    width: 100%;
-                    max-width: 600px;
-                    min-height: 300px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    margin-bottom: 2rem;
-                }
-
-                .content {
-                    font-size: 1.2rem;
-                    line-height: 1.6;
-                    width: 100%;
-                }
-
-                .buttons {
-                    display: flex;
-                    gap: 1rem;
-                    margin-top: 2rem;
-                }
-
-                button {
-                    padding: 0.5rem 1rem;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 1rem;
-                    min-width: 100px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    position: relative;
-                }
-
-                button::after {
-                    content: attr(data-shortcut);
-                    position: absolute;
-                    bottom: -25px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    font-size: 0.8rem;
-                    opacity: 0;
-                    transition: opacity 0.2s;
-                    background: var(--vscode-editor-background);
-                    padding: 2px 6px;
-                    border-radius: 3px;
-                    white-space: nowrap;
-                }
-
-                button:hover::after {
-                    opacity: 0.8;
-                }
-
-                .interval {
-                    font-size: 0.8rem;
-                    opacity: 0.7;
-                    margin-top: 0.2rem;
-                }
-
-                .again { background: var(--vscode-errorForeground); color: white; }
-                .hard { background: var(--vscode-editorWarning-foreground); color: white; }
-                .good { background: var(--vscode-testing-iconPassed); color: white; }
-                .easy { background: var(--vscode-charts-green); color: white; }
-
-                .show-answer { 
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    background: var(--vscode-button-background); 
-                    color: var(--vscode-button-foreground);
-                    margin-bottom: 1rem;
-                }
-
-                .show-answer svg {
-                    width: 16px;
-                    height: 16px;
-                    stroke-width: 2;
-                }
-
-                button:disabled {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                }
-
-                button:disabled::after {
-                    display: none;
-                }
+                ${getStyles(this.extensionRoot, 'cardReview')}
             </style>
         </head>
         <body>
-            <div class="card">
-                <button class="icon-button source-button" onclick="jumpToSource()" id="source-button" disabled title="Jump to source">${ExternalLink}</button>
-                <div class="content" id="content">
-                    Loading...
-                </div>
-            </div>
-            <button class="show-answer" onclick="showAnswer()" id="show-answer-button" data-shortcut="Space">
-                ${Eye}
-                <span>Show Answer</span>
-            </button>
-            <div class="buttons" id="buttons">
-                <button class="again" onclick="rate(1)" id="button-1" disabled data-shortcut="1">
-                    <span>Again</span>
-                    <span class="interval" id="interval-1"></span>
-                </button>
-                <button class="hard" onclick="rate(2)" id="button-2" disabled data-shortcut="2">
-                    <span>Hard</span>
-                    <span class="interval" id="interval-2"></span>
-                </button>
-                <button class="good" onclick="rate(3)" id="button-3" disabled data-shortcut="3">
-                    <span>Good</span>
-                    <span class="interval" id="interval-3"></span>
-                </button>
-                <button class="easy" onclick="rate(4)" id="button-4" disabled data-shortcut="4">
-                    <span>Easy</span>
-                    <span class="interval" id="interval-4"></span>
-                </button>
-            </div>
-            <script>
-                const vscode = acquireVsCodeApi();
-                
-                function rate(rating) {
-                    vscode.postMessage({
-                        type: 'rate',
-                        rating: rating
-                    });
-                }
-
-                function showAnswer() {
-                    vscode.postMessage({
-                        type: 'showAnswer'
-                    });
-                }
-
-                function jumpToSource() {
-                    vscode.postMessage({
-                        type: 'jumpToSource'
-                    });
-                }
-
-                window.addEventListener('message', event => {
-                    const message = event.data;
-                    switch (message.type) {
-                        case 'update':
-                            document.getElementById('content').innerHTML = message.content;
-                            // Update source button visibility
-                            const sourceButton = document.getElementById('source-button');
-                            sourceButton.disabled = !message.hasSource;
-                            // Typeset the math after updating content
-                            if (window.MathJax) {
-                                MathJax.typesetPromise().catch((err) => console.error('MathJax error:', err));
-                            }
-                            // Update intervals and button states
-                            for (let i = 1; i <= 4; i++) {
-                                const button = document.getElementById('button-' + i);
-                                const interval = document.getElementById('interval-' + i);
-                                interval.textContent = message.intervals[i] || '';
-                                button.disabled = !message.enableButtons;
-                            }
-                            // Update show answer button
-                            const showAnswerButton = document.getElementById('show-answer-button');
-                            showAnswerButton.style.display = message.enableButtons ? 'none' : 'flex';
-                            break;
-                        case 'focus':
-                            // Focus the webview
-                            window.focus();
-                            document.body.focus();
-                            break;
-                    }
-                });
-
-                // Handle keyboard shortcuts
-                window.addEventListener('keydown', (e) => {
-                    if (e.key === ' ' || e.key === 'Space') {
-                        e.preventDefault();  // Prevent scrolling
-                        const showAnswerButton = document.getElementById('show-answer-button');
-                        if (!showAnswerButton.style.display || showAnswerButton.style.display !== 'none') {
-                            showAnswer();
-                        }
-                    } else if (!isNaN(parseInt(e.key)) && parseInt(e.key) >= 1 && parseInt(e.key) <= 4) {
-                        const rating = parseInt(e.key);
-                        const button = document.getElementById('button-' + rating);
-                        if (!button.disabled) {
-                            rate(rating);
-                        }
-                    }
-                });
-            </script>
+            ${this.getCardReviewBody()}
+            <script src="${this.panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, 'lib', 'cards', 'shared.js'))}"></script>
+            <script src="${this.panel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, 'lib', 'cards', 'cardReview.js'))}"></script>
         </body>
         </html>`;
     }
 
-    private async showCard(card: MdCard) {
-        this.currentCard = card;
-        this.showingAnswer = false;
+    private getCardReviewBody(): string {
+        const bodyPath = vscode.Uri.joinPath(this.extensionRoot, 'lib', 'cards', 'cardReview.html');
+        let content = fs.readFileSync(bodyPath.fsPath, 'utf8');
 
-        // Convert markdown to HTML for the front of the card
-        const content = marked.parse(card.front);
+        // Replace icon placeholders with actual icons
+        content = content.replace('${ExternalLink}', ExternalLink);
+        content = content.replace('${Eye}', Eye);
 
-        // Update the webview content
-        this.panel.webview.postMessage({
-            type: 'update',
-            content,
-            hasSource: !!(card.sourceFile && card.sourceLine),
-            intervals: {},
-            enableButtons: false
-        });
+        return content;
     }
 
-    private async showAnswer() {
-        if (!this.currentCard) return;
+    private async showCard(card: MdCard) {
+        this.currentCard = card;
 
-        this.showingAnswer = true;
-
-        // Convert markdown to HTML for both front and back of the card
-        const content = marked.parse(this.currentCard.front + '\n\n---\n\n' + this.currentCard.back);
+        // Convert markdown to HTML for the front and back of the card
+        const frontContent = marked.parse(card.front);
+        const backContent = marked.parse(card.back);
 
         // Get scheduling information
         const intervals: { [key: number]: string } = {};
-        if (this.currentCard.id) {
-            const state = this.cardManager.getCardReviewState(this.currentCard);
+        if (card.id) {
+            const state = this.cardManager.getCardReviewState(card);
             const fsrs = this.cardManager.getFSRS();
             const now = new Date();
             const scheduling = fsrs.repeat(state, now);
@@ -392,13 +190,15 @@ export class CardReviewView {
             }
         }
 
-        // Update the webview content with all necessary information
+        // Update the webview content
         this.panel.webview.postMessage({
             type: 'update',
-            content,
-            hasSource: !!(this.currentCard.sourceFile && this.currentCard.sourceLine),
+            frontContent,
+            backContent,
+            showAnswer: false,
+            hasSource: !!(card.sourceFile && card.sourceLine),
             intervals,
-            enableButtons: true
+            enableButtons: false
         });
     }
 
@@ -409,8 +209,9 @@ export class CardReviewView {
         } else {
             this.panel.webview.postMessage({
                 type: 'update',
-                content: marked.parse('No more cards due for review!'),
-                hasSource: false,
+                frontContent: 'No more cards due for review!',
+                backContent: '',
+                showAnswer: false,
                 intervals: {},
                 enableButtons: false
             });
@@ -434,34 +235,41 @@ export class CardReviewView {
         if (!this.currentCard) {
             this.panel.webview.postMessage({
                 type: 'update',
-                content: 'No cards due for review!',
+                frontContent: 'No cards due for review!',
+                backContent: '',
+                showAnswer: false,
                 intervals: {},
                 enableButtons: false
             });
             return;
         }
 
-        const state = this.cardManager.getCardReviewState(this.currentCard);
-        const fsrs = this.cardManager.getFSRS();
-        const now = new Date();
-        const scheduling = fsrs.repeat(state, now);
+        // Convert markdown to HTML for the front and back of the card
+        const frontContent = marked.parse(this.currentCard.front);
+        const backContent = marked.parse(this.currentCard.back);
 
-        // Create intervals map for each rating
+        // Get scheduling information
         const intervals: { [key: number]: string } = {};
-        Array.from(scheduling).forEach(item => {
-            intervals[item.log.rating] = this.formatTimeInterval(item.card.due);
-        });
+        if (this.currentCard.id) {
+            const state = this.cardManager.getCardReviewState(this.currentCard);
+            const fsrs = this.cardManager.getFSRS();
+            const now = new Date();
+            const scheduling = fsrs.repeat(state, now);
 
-        // Render markdown content
-        const content = this.showingAnswer
-            ? `${marked(this.currentCard.front)}\n<hr>\n${marked(this.currentCard.back)}`
-            : marked(this.currentCard.front);
+            // Update interval information for each button
+            for (const item of scheduling) {
+                intervals[item.log.rating] = this.formatTimeInterval(item.card.due);
+            }
+        }
 
+        // Update the webview content
         this.panel.webview.postMessage({
             type: 'update',
-            content: content,
+            frontContent,
+            backContent,
             intervals,
-            enableButtons: this.showingAnswer
+            enableButtons: false,
+            showAnswer: false
         });
     }
 
