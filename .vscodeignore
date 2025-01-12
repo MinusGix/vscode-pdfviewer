@@ -7,3 +7,6 @@ src/**
 .gitignore
 tsconfig.json
 vsc-extension-quickstart.md
+ideas.md
+vitest.config.ts
+node_modules/**

@@ -2,5 +2,8 @@ out
 node_modules
 *.vsix
 .vscode-test/
+.parcel-cache/
+dist/
+
 
 ideas.md
