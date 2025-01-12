@@ -135,7 +135,7 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
                 position.fields.set(currentField, {
                     startLine: startLine + currentFieldStart.line,
                     startCharacter: currentFieldStart.character,
-                    endLine: startLine + i,
+                    endLine: startLine + i - 1,
                     endCharacter: lines[i - 1].length,
                     value: fieldValue
                 });
@@ -147,18 +147,26 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
             const value = fieldMatch[2];
             currentFieldStart = { line: i, character: line.indexOf(field) };
 
-            // If the value starts with |, it's a multiline value
-            if (value.trim() === '|') {
+            // Start collecting multiline content if there are more lines after this
+            // or if the current line is empty
+            if (!value.trim()) {
                 currentValue = [];
                 isMultiline = true;
+            } else if (i < lines.length - 1 && !lines[i + 1].match(/^\w+:/) && lines[i + 1].trim()) {
+                // There's actual content (not just whitespace) on the next line and it's not a new field
+                currentValue = [value];
+                isMultiline = true;
             } else {
+                // Single line field
                 setCardField(card, field, value.trim());
+                const valueStart = line.indexOf(':') + 1;
+                const trimmedValue = value.trim();
                 position.fields.set(field, {
                     startLine: startLine + i,
                     startCharacter: currentFieldStart.character,
                     endLine: startLine + i,
-                    endCharacter: line.length,
-                    value: value.trim()
+                    endCharacter: valueStart + value.length - (value.length - trimmedValue.length),
+                    value: trimmedValue
                 });
                 currentField = null;
                 currentFieldStart = null;
@@ -166,7 +174,7 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
             }
         } else if (currentField && currentFieldStart) {
             // This is a continuation of a multiline value
-            currentValue.push(line.trim());
+            currentValue.push(line);
         }
     }
 

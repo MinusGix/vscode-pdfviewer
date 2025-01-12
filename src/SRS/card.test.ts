@@ -17,11 +17,11 @@ type: basic`;
         });
     });
 
-    test('parses card with multiline content using pipe syntax', () => {
-        const content = `front: |
+    test('parses card with multiline content', () => {
+        const content = `front: 
   What are the steps to make a cake?
   Please list them in order.
-back: |
+back: 
   1. Gather ingredients
   2. Mix dry ingredients
   3. Mix wet ingredients
@@ -41,10 +41,50 @@ steps: true`;
         });
     });
 
+    test('parses card with multiline content starting on same line', () => {
+        const content = `front: What are the steps to make a cake?
+  Please list them in order.
+back: 1. Gather ingredients
+  2. Mix dry ingredients
+  3. Mix wet ingredients
+  4. Combine mixtures
+  5. Bake at 350°F
+tags: cooking, baking
+type: problem
+steps: true`;
+
+        const card = parseMdCard(content);
+        expect(card).toEqual({
+            front: 'What are the steps to make a cake?\nPlease list them in order.',
+            back: '1. Gather ingredients\n2. Mix dry ingredients\n3. Mix wet ingredients\n4. Combine mixtures\n5. Bake at 350°F',
+            tags: ['cooking', 'baking'],
+            type: 'problem',
+            steps: true
+        });
+    });
+
+    test('handles mixed multiline styles', () => {
+        const content = `front: First line of front
+  Second line of front
+back: 
+  First line of back
+  Second line of back
+type: basic`;
+
+        const card = parseMdCard(content);
+        expect(card).toEqual({
+            front: 'First line of front\nSecond line of front',
+            back: 'First line of back\nSecond line of back',
+            type: 'basic',
+            tags: []
+        });
+    });
+
     test('parses card with all optional fields', () => {
         const content = `title: Complex Integration
-front: Explain the Residue Theorem
-back: |
+front: 
+  Explain the Residue Theorem
+back: 
   The residue theorem states that for a meromorphic function f(z):
   ∮ f(z)dz = 2πi * Σ Res(f,ak)
   where ak are the poles of f(z) inside the contour.
@@ -168,7 +208,7 @@ custom_field: With multiple words`);
         const card = parseMdCard(`
 front: Test
 back: Test back
-custom_field: |
+custom_field:
     This is a multiline
     custom field content
     with several lines
@@ -318,7 +358,7 @@ type: basic`;
             startLine: 3,
             startCharacter: 0,
             endLine: 3,
-            endCharacter: 26,
+            endCharacter: 25,
             value: 'What is TypeScript?'
         });
 
@@ -326,16 +366,16 @@ type: basic`;
             startLine: 4,
             startCharacter: 0,
             endLine: 4,
-            endCharacter: 36,
+            endCharacter: 35,
             value: 'A typed superset of JavaScript'
         });
     });
 
     test('tracks positions for multiline fields', () => {
-        const content = `front: |
+        const content = `front: 
   What are the steps to make a cake?
   Please list them in order.
-back: |
+back: 
   1. Gather ingredients
   2. Mix dry ingredients
   3. Mix wet ingredients
@@ -349,7 +389,7 @@ steps: true`;
         expect(frontField).toEqual({
             startLine: 5,
             startCharacter: 0,
-            endLine: 8,
+            endLine: 7,
             endCharacter: 28,
             value: 'What are the steps to make a cake?\nPlease list them in order.'
         });
@@ -358,7 +398,7 @@ steps: true`;
         expect(backField).toEqual({
             startLine: 8,
             startCharacter: 0,
-            endLine: 12,
+            endLine: 11,
             endCharacter: 24,
             value: '1. Gather ingredients\n2. Mix dry ingredients\n3. Mix wet ingredients'
         });
@@ -407,7 +447,7 @@ type: basic
             startLine: 3,
             startCharacter: 0,
             endLine: 3,
-            endCharacter: 13,
+            endCharacter: 12,
             value: 'Card 1'
         });
 
@@ -424,7 +464,7 @@ type: basic
             startLine: 11,
             startCharacter: 0,
             endLine: 11,
-            endCharacter: 13,
+            endCharacter: 12,
             value: 'Card 2'
         });
     });
@@ -448,6 +488,9 @@ type: basic
         // First card (indented)
         const firstCard = cards[0];
         const frontField = firstCard.position.fields.get('front');
+        const backField = firstCard.position.fields.get('back');
+
+        // Check front field position
         expect(frontField).toEqual({
             startLine: 1,
             startCharacter: 0,
@@ -456,14 +499,36 @@ type: basic
             value: 'Indented card'
         });
 
+        // Check back field position
+        expect(backField).toEqual({
+            startLine: 2,
+            startCharacter: 4,
+            endLine: 2,
+            endCharacter: 25,
+            value: 'Indented answer'
+        });
+
         // Second card (non-indented)
         const secondCard = cards[1];
-        expect(secondCard.position.fields.get('front')).toEqual({
+        const secondFrontField = secondCard.position.fields.get('front');
+        const secondBackField = secondCard.position.fields.get('back');
+
+        // Check front field position
+        expect(secondFrontField).toEqual({
             startLine: 7,
             startCharacter: 0,
             endLine: 7,
-            endCharacter: 24,
+            endCharacter: 23,
             value: 'Non-indented card'
+        });
+
+        // Check back field position
+        expect(secondBackField).toEqual({
+            startLine: 8,
+            startCharacter: 0,
+            endLine: 8,
+            endCharacter: 24,
+            value: 'Non-indented answer'
         });
     });
 
@@ -482,7 +547,7 @@ type: basic
             startLine: 1,
             startCharacter: 0,
             endLine: 1,
-            endCharacter: 17,
+            endCharacter: 16,
             value: 'What is π?'
         });
 
@@ -490,5 +555,42 @@ type: basic
         const lines = mdContent.split('\n');
         const frontLine = lines[1];
         expect(frontLine.substring(7)).toBe('What is π?');
+    });
+
+    test('handles multiline content with indentation', () => {
+        const mdContent = `:::card
+    front: First line of front
+        Second line of front
+        Third line of front
+    back: First line of back
+        Second line of back
+        Third line of back
+    type: basic
+:::`;
+
+        const cards = extractMdCardsWithPosition(mdContent);
+        expect(cards).toHaveLength(1);
+
+        const card = cards[0];
+        const frontField = card.position.fields.get('front');
+        const backField = card.position.fields.get('back');
+
+        // Check front field position
+        expect(frontField).toEqual({
+            startLine: 1,
+            startCharacter: 0,
+            endLine: 3,
+            endCharacter: 27,
+            value: 'First line of front\nSecond line of front\nThird line of front'
+        });
+
+        // Check back field position
+        expect(backField).toEqual({
+            startLine: 4,
+            startCharacter: 4,
+            endLine: 6,
+            endCharacter: 26,
+            value: 'First line of back\nSecond line of back\nThird line of back'
+        });
     });
 }); 
