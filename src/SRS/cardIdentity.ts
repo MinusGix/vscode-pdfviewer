@@ -1,24 +1,13 @@
 import { MdCard } from './card';
+import { nanoid } from 'nanoid';
 
-
-let counter = 0;
 /**
  * Generates a stable ID for a card based on its initial content
  * @param card The card to generate an ID for
  * @returns A unique identifier string
  */
 export function generateCardId(card: MdCard): string {
-    // TODO: Should we use a GUID instead?
-    const timestamp = Date.now().toString(36);
-
-    // Increment and reset counter if it gets too large
-    counter = (counter + 1) % 1296; // 36^2
-
-    const counterStr = counter.toString(36).padStart(2, '0');
-
-    const randomChar = Math.floor(Math.random() * 36).toString(36);
-
-    return `${timestamp}${counterStr}${randomChar}`;
+    return nanoid();
 }
 
 /**

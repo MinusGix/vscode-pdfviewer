@@ -262,6 +262,7 @@
     "@types/vscode": "^1.95.0",
     "lucide-static": "^0.358.0",
     "marked": "^15.0.6",
+    "nanoid": "^3.3.8",
     "ts-fsrs": "^4.5.1"
   },
   "devDependencies": {
@@ -287,5 +288,14 @@
     "src/webview/**/*"
   ],
   "source": "src/extension.ts",
-  "main": "dist/extension.js"
+  "main": "dist/extension.js",
+  "targets": {
+    "main": {
+      "includeNodeModules": [
+        "ts-fsrs",
+        "lucide-static",
+        "marked"
+      ]
+    }
+  }
 }
