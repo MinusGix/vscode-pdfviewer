@@ -34,6 +34,22 @@ vi.mock('vscode', () => {
                 path: uri
             })
         },
+        window: {
+            createStatusBarItem: () => ({
+                show: vi.fn(),
+                dispose: vi.fn(),
+                hide: vi.fn()
+            }),
+            showWarningMessage: vi.fn(),
+            showErrorMessage: vi.fn(),
+            showInformationMessage: vi.fn()
+        },
+        ThemeColor: class {
+            constructor(public id: string) { }
+        },
+        StatusBarAlignment: {
+            Left: 1
+        },
         RelativePattern: class {
             baseUri: vscode.Uri;
             path: string;
@@ -63,7 +79,15 @@ vi.mock('vscode', () => {
             findFiles: vi.fn().mockResolvedValue([]),
             fs: {
                 readFile: async () => new Uint8Array()
-            }
+            },
+            workspaceFolders: [{
+                uri: { fsPath: '/test/workspace' },
+                name: 'test',
+                index: 0
+            }],
+            getConfiguration: () => ({
+                get: (key: string, defaultValue: any) => defaultValue
+            })
         }
     };
 });
@@ -106,15 +130,25 @@ describe('CardManager', () => {
         };
     }
 
-    beforeEach(() => {
+    beforeEach(async () => {
         vi.clearAllMocks();
+        // Ensure any previous instance is disposed
+        try {
+            CardManager.getInstance().dispose();
+        } catch (e) {
+            // Ignore errors if no instance exists
+        }
         manager = CardManager.getInstance();
         updateEvents = [];
         manager.onDidUpdateCards(event => updateEvents.push(event));
     });
 
     afterEach(() => {
-        manager.dispose();
+        try {
+            manager.dispose();
+        } catch (e) {
+            // Ignore errors during disposal
+        }
     });
 
     describe('initialization', () => {
