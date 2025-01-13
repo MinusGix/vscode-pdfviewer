@@ -36,54 +36,6 @@
         "supported": true
       }
     },
-    "grammars": [
-      {
-        "path": "./syntaxes/card-markdown.json",
-        "scopeName": "markdown.card.injection",
-        "injectTo": [
-          "text.html.markdown"
-        ]
-      }
-    ],
-    "customEditors": [
-      {
-        "viewType": "lattice.preview",
-        "displayName": "Lattice Preview",
-        "selector": [
-          {
-            "filenamePattern": "*.pdf"
-          }
-        ]
-      },
-      {
-        "viewType": "lattice.webPreview",
-        "displayName": "Lattice Web Preview",
-        "selector": [
-          {
-            "filenamePattern": "*.url"
-          }
-        ]
-      }
-    ],
-    "menus": {
-      "webview/context": [
-        {
-          "command": "lattice.preview.insertQuotation",
-          "when": "webviewId == 'lattice.preview'",
-          "group": "navigation"
-        },
-        {
-          "command": "lattice.webPreview.copy",
-          "when": "webviewId == 'lattice.webPreview'",
-          "group": "navigation"
-        },
-        {
-          "command": "lattice.webPreview.insertQuotation",
-          "when": "webviewId == 'lattice.webPreview'",
-          "group": "navigation"
-        }
-      ]
-    },
     "commands": [
       {
         "command": "lattice.preview.noteTransfer",
@@ -181,8 +133,61 @@
         "command": "lattice.listCards",
         "title": "List All Cards",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.toggleBlockquote",
+        "title": "Toggle Blockquote",
+        "category": "Lattice"
       }
     ],
+    "grammars": [
+      {
+        "path": "./syntaxes/card-markdown.json",
+        "scopeName": "markdown.card.injection",
+        "injectTo": [
+          "text.html.markdown"
+        ]
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "lattice.preview",
+        "displayName": "Lattice Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.pdf"
+          }
+        ]
+      },
+      {
+        "viewType": "lattice.webPreview",
+        "displayName": "Lattice Web Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.url"
+          }
+        ]
+      }
+    ],
+    "menus": {
+      "webview/context": [
+        {
+          "command": "lattice.preview.insertQuotation",
+          "when": "webviewId == 'lattice.preview'",
+          "group": "navigation"
+        },
+        {
+          "command": "lattice.webPreview.copy",
+          "when": "webviewId == 'lattice.webPreview'",
+          "group": "navigation"
+        },
+        {
+          "command": "lattice.webPreview.insertQuotation",
+          "when": "webviewId == 'lattice.webPreview'",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
       "title": "PDF Preview",

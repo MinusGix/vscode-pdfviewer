@@ -7,6 +7,7 @@ import { CardManager } from './SRS/cardManager';
 import { MdParser } from './SRS/mdParser';
 import { CardReviewView } from './SRS/cardReviewView';
 import { CardListView } from './SRS/cardListView';
+import { toggleBlockquote } from './utils/blockquote';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
@@ -192,6 +193,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (url) {
         await openUrlInWebview(url, 'frame');
       }
+    })
+  );
+
+  // Register toggle blockquote command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.toggleBlockquote', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        return;
+      }
+
+      const selections = editor.selections;
+      editor.edit(editBuilder => {
+        for (const selection of selections) {
+          const text = editor.document.getText(selection);
+          const newText = toggleBlockquote(text);
+          editBuilder.replace(selection, newText);
+        }
+      });
     })
   );
 
