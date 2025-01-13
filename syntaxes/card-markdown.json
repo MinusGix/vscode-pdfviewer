@@ -1,0 +1,58 @@
+{
+    "scopeName": "markdown.card.injection",
+    "injectionSelector": "L:text.html.markdown",
+    "patterns": [
+        {
+            "include": "#card-block"
+        }
+    ],
+    "repository": {
+        "card-block": {
+            "begin": "(:::)(card)",
+            "end": "^\\s*(:::)\\s*$",
+            "beginCaptures": {
+                "1": {
+                    "name": "punctuation.definition.card.begin.markdown"
+                },
+                "2": {
+                    "name": "entity.name.type.card.markdown"
+                }
+            },
+            "endCaptures": {
+                "1": {
+                    "name": "punctuation.definition.card.end.markdown"
+                }
+            },
+            "patterns": [
+                {
+                    "match": "^\\s*(front|back|type|tags|title|steps|difficulty)(:)",
+                    "captures": {
+                        "1": {
+                            "name": "markup.italic.card-field.markdown"
+                        },
+                        "2": {
+                            "name": "punctuation.separator.key-value.markdown"
+                        }
+                    }
+                },
+                {
+                    "match": "^\\s*(id)(:)\\s*(.+)$",
+                    "captures": {
+                        "1": {
+                            "name": "comment.block.card-id.markdown"
+                        },
+                        "2": {
+                            "name": "punctuation.separator.key-value.markdown"
+                        },
+                        "3": {
+                            "name": "comment.block.card-id-value.markdown"
+                        }
+                    }
+                },
+                {
+                    "include": "text.html.markdown"
+                }
+            ]
+        }
+    }
+}

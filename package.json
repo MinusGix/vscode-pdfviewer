@@ -27,8 +27,8 @@
     "url": "https://github.com/minusgix/lattice/issues"
   },
   "activationEvents": [
-    "onCustomEditor:lattice.preview",
-    "onCustomEditor:lattice.webPreview"
+    "onLanguage:markdown",
+    "workspaceContains:*.pdf"
   ],
   "contributes": {
     "capabilities": {
@@ -36,6 +36,15 @@
         "supported": true
       }
     },
+    "grammars": [
+      {
+        "path": "./syntaxes/card-markdown.json",
+        "scopeName": "markdown.card.injection",
+        "injectTo": [
+          "text.html.markdown"
+        ]
+      }
+    ],
     "customEditors": [
       {
         "viewType": "lattice.preview",
@@ -294,7 +303,8 @@
       "includeNodeModules": [
         "ts-fsrs",
         "lucide-static",
-        "marked"
+        "marked",
+        "nanoid"
       ]
     }
   }
