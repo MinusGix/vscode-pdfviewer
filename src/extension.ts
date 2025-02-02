@@ -40,7 +40,7 @@ export async function openUrlInWebview(url: string, mode: 'frame' | 'frameless' 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   console.log('Activating Lattice extension');
 
-  const extensionRoot = vscode.Uri.file(context.extensionPath);
+  const extensionRoot = context.extensionUri;
 
   // Initialize document title manager
   DocumentTitleManager.init(context.workspaceState);

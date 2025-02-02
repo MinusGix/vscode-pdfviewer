@@ -167,7 +167,7 @@ export class PdfPreview extends Disposable {
     const docPath = webview.asWebviewUri(this.resource);
     const cspSource = webview.cspSource;
     const resolveAsUri = (...p: string[]): vscode.Uri => {
-      const uri = vscode.Uri.file(path.join(this.extensionRoot.path, ...p));
+      const uri = vscode.Uri.joinPath(this.extensionRoot, ...p);
       return webview.asWebviewUri(uri);
     };
 
@@ -210,8 +210,8 @@ export class PdfPreview extends Disposable {
 <script src="${resolveAsUri('lib', 'main.js')}" type="module"></script>
 </head>`;
 
-    const bodyPath = path.join(this.extensionRoot.path, 'lib', 'viewer-body.html');
-    const body = fs.readFileSync(bodyPath, 'utf8');
+    const bodyPath = vscode.Uri.joinPath(this.extensionRoot, 'lib', 'viewer-body.html');
+    const body = fs.readFileSync(bodyPath.fsPath, 'utf8');
 
     const tail = ['</html>'].join('\n');
 
