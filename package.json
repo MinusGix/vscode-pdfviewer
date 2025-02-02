@@ -246,6 +246,17 @@
           "markdownDescription": "The desired retention level for FSRS cards. This is a value between 0 and 1, where 0.90 is the default. If the times appear too long, then try increasing. 0.7-0.97 is a good value range.",
           "type": "number",
           "default": 0.9
+        },
+        "lattice.cards.phantomTags": {
+          "markdownDescription": "Map of glob patterns to tags. Any cards in files matching a pattern will automatically have the corresponding tag(s). Example: { \"french/*\": [\"french\"], \"math/**/*.md\": [\"math\"] }",
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },

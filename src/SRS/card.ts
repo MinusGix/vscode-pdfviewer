@@ -1,3 +1,6 @@
+import * as vscode from 'vscode';
+import * as path from 'path';
+
 /**
  * Definition of a card defined in a markdown file. Used for the parsing results, and potentially outputting back to markdown.
  */
@@ -240,4 +243,64 @@ export function parseMdCard(content: string): MdCard {
 
 export function extractMdCards(mdContent: string, sourceFile?: string): MdCard[] {
     return extractMdCardsWithPosition(mdContent, sourceFile).map(result => result.card);
+}
+
+/**
+ * Convert a glob pattern to a regular expression
+ * @param pattern The glob pattern to convert
+ * @returns A RegExp that matches the pattern
+ */
+function globToRegExp(pattern: string): RegExp {
+    const regExpStr = pattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape special regex chars
+        .replace(/\*/g, '.*')                  // * matches any characters
+        .replace(/\?/g, '.');                  // ? matches single character
+    return new RegExp(`^${regExpStr}$`);
+}
+
+/**
+ * Check if a path matches a glob pattern
+ * @param path The path to check
+ * @param pattern The glob pattern
+ * @returns True if the path matches the pattern
+ */
+function isMatch(testPath: string, pattern: string): boolean {
+    const regex = globToRegExp(pattern);
+    return regex.test(testPath);
+}
+
+/**
+ * Gets all tags for a card, including both explicit and phantom tags
+ * @param card The card to get tags for
+ * @returns Array of all tags
+ */
+export function getAllTags(card: MdCard): string[] {
+    const allTags = new Set(card.tags);
+
+    // If the card has no source file, just return explicit tags
+    if (!card.sourceFile) {
+        return Array.from(allTags);
+    }
+
+    // Get phantom tag configuration
+    const config = vscode.workspace.getConfiguration('lattice.cards');
+    const phantomTags = config.get<Record<string, string[]>>('phantomTags', {});
+
+    // Get workspace root
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        return Array.from(allTags);
+    }
+
+    // Get relative path from workspace root
+    const relativePath = path.relative(workspaceRoot, card.sourceFile);
+
+    // Check each pattern and add matching tags
+    for (const [pattern, tags] of Object.entries(phantomTags)) {
+        if (isMatch(relativePath, pattern)) {
+            tags.forEach(tag => allTags.add(tag));
+        }
+    }
+
+    return Array.from(allTags);
 }

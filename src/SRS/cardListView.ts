@@ -5,6 +5,7 @@ import { marked } from 'marked';
 import { Eye, EyeOff, ExternalLink, Square, CheckSquare } from 'lucide-static';
 import { getStyles, mathJaxConfig } from './styles';
 import * as fs from 'fs';
+import { getAllTags } from './card';
 
 // Configure marked to preserve line breaks
 marked.setOptions({
@@ -227,6 +228,9 @@ export class CardListView {
                 nextReviewText = this.formatTimeInterval(state.due);
             }
 
+            const allTags = getAllTags(card);
+            const tagsDisplay = allTags.length ? ` • ${allTags.join(', ')}` : '';
+
             return `
             <div class="card${isSelected ? ' selected' : ''}" data-index="${index}">
                 <button class="icon-button checkbox-button" onclick="toggleSelect('${card.id}', ${index}, event)" title="Select card">
@@ -234,7 +238,7 @@ export class CardListView {
                 </button>
                 ${card.sourceFile ? `<button class="icon-button source-button" onclick="jumpToSource('${card.id}')" title="Jump to source">${ExternalLink}</button>` : ''}
                 <div class="card-meta">
-                    ${card.type}${card.tags.length ? ` • ${card.tags.join(', ')}` : ''}
+                    ${card.type}${tagsDisplay}
                 </div>
                 <div class="content">
                     <div class="front-content">${marked.parse(card.front)}</div>
