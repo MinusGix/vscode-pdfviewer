@@ -248,7 +248,7 @@
           "default": 0.9
         },
         "lattice.cards.phantomTags": {
-          "markdownDescription": "Map of glob patterns to tags. Any cards in files matching a pattern will automatically have the corresponding tag(s). Example: { \"french/*\": [\"french\"], \"math/**/*.md\": [\"math\"] }",
+          "markdownDescription": "Map of glob patterns to tags that should be added to cards in matching files.",
           "type": "object",
           "default": {},
           "additionalProperties": {
@@ -256,6 +256,14 @@
             "items": {
               "type": "string"
             }
+          }
+        },
+        "lattice.cards.tagColors": {
+          "markdownDescription": "Map of tags to colors for card borders. Colors can be any valid CSS color value.",
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
           }
         }
       }

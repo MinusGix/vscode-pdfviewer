@@ -169,6 +169,17 @@ export class CardReviewView {
         return content;
     }
 
+    private getTagColor(tags: string[]): string | undefined {
+        const tagColors = vscode.workspace.getConfiguration('lattice.cards').get<Record<string, string>>('tagColors', {});
+        // Return the first matching tag's color
+        for (const tag of tags) {
+            if (tag in tagColors) {
+                return tagColors[tag];
+            }
+        }
+        return undefined;
+    }
+
     private async showCard(card: MdCard) {
         this.currentCard = card;
 
@@ -190,6 +201,9 @@ export class CardReviewView {
             }
         }
 
+        // Get tag color
+        const tagColor = this.getTagColor(card.tags);
+
         // Update the webview content
         this.panel.webview.postMessage({
             type: 'update',
@@ -198,7 +212,8 @@ export class CardReviewView {
             showAnswer: false,
             hasSource: !!(card.sourceFile && card.sourceLine),
             intervals,
-            enableButtons: false
+            enableButtons: false,
+            tagColor
         });
     }
 
@@ -239,7 +254,8 @@ export class CardReviewView {
                 backContent: '',
                 showAnswer: false,
                 intervals: {},
-                enableButtons: false
+                enableButtons: false,
+                tagColor: undefined
             });
             return;
         }
@@ -262,6 +278,9 @@ export class CardReviewView {
             }
         }
 
+        // Get tag color
+        const tagColor = this.getTagColor(this.currentCard.tags);
+
         // Update the webview content
         this.panel.webview.postMessage({
             type: 'update',
@@ -269,7 +288,8 @@ export class CardReviewView {
             backContent,
             intervals,
             enableButtons: false,
-            showAnswer: false
+            showAnswer: false,
+            tagColor
         });
     }
 

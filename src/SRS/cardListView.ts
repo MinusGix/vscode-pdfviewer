@@ -212,6 +212,17 @@ export class CardListView {
         return `${diffYears}y`;
     }
 
+    private getTagColor(tags: string[]): string | undefined {
+        const tagColors = vscode.workspace.getConfiguration('lattice.cards').get<Record<string, string>>('tagColors', {});
+        // Return the first matching tag's color
+        for (const tag of tags) {
+            if (tag in tagColors) {
+                return tagColors[tag];
+            }
+        }
+        return undefined;
+    }
+
     private displayCards() {
         const filteredCards = this.getFilteredCards();
         const content = filteredCards.map((card, index) => {
@@ -230,9 +241,11 @@ export class CardListView {
 
             const allTags = getAllTags(card);
             const tagsDisplay = allTags.length ? ` • ${allTags.join(', ')}` : '';
+            const tagColor = this.getTagColor(allTags);
+            const tagColorStyle = tagColor ? `style="--tag-color: ${tagColor};"` : '';
 
             return `
-            <div class="card${isSelected ? ' selected' : ''}" data-index="${index}">
+            <div class="card${isSelected ? ' selected' : ''}" data-index="${index}" ${tagColorStyle}>
                 <button class="icon-button checkbox-button" onclick="toggleSelect('${card.id}', ${index}, event)" title="Select card">
                     ${isSelected ? CheckSquare : Square}
                 </button>

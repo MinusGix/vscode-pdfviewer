@@ -78,6 +78,18 @@ body {
     padding-left: 2.5rem !important;
     box-sizing: border-box;
     margin: 0;
+    position: relative;
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    background-color: var(--tag-color, rgba(255, 255, 255, 0.1));
+    border-radius: 4px;
 }
 
 .card.selected {
