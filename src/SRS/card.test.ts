@@ -55,8 +55,8 @@ steps: true`;
 
         const card = parseMdCard(content);
         expect(card).toEqual({
-            front: 'What are the steps to make a cake?\nPlease list them in order.',
-            back: '1. Gather ingredients\n2. Mix dry ingredients\n3. Mix wet ingredients\n4. Combine mixtures\n5. Bake at 350°F',
+            front: 'What are the steps to make a cake?\n  Please list them in order.',
+            back: '1. Gather ingredients\n  2. Mix dry ingredients\n  3. Mix wet ingredients\n  4. Combine mixtures\n  5. Bake at 350°F',
             tags: ['cooking', 'baking'],
             type: 'problem',
             steps: true
@@ -73,7 +73,7 @@ type: basic`;
 
         const card = parseMdCard(content);
         expect(card).toEqual({
-            front: 'First line of front\nSecond line of front',
+            front: 'First line of front\n  Second line of front',
             back: 'First line of back\nSecond line of back',
             type: 'basic',
             tags: []
@@ -284,6 +284,38 @@ difficulty: hard`);
             steps: true,
             difficulty: 'hard'
         });
+    });
+
+    test('handles numbered lists with colons in content', () => {
+        const content = `id: 4PKOf-C7J_kLtAJ_hbGI-
+front: What is an ideal in a ring $(R,+,\\cdot)$, and what are its key properties?
+back: An ideal $I \\subseteq R$ is a subset that's closed under addition and multiplication by any ring element.
+Key properties
+1. $(I,+)$ is a subgroup of $(R,+)$:
+   - If $a,b \\in I$, then $a + b \\in I$
+   - If $a \\in I$, then $-a \\in I$
+   - $0 \\in I$
+2. For all $r \\in R$ and $a \\in I$:
+   $r \\cdot a \\in I$ and $a \\cdot r \\in I$`;
+
+        const card = parseMdCard(content);
+
+        expect(card.id).toBe('4PKOf-C7J_kLtAJ_hbGI-');
+        expect(card.front).toBe('What is an ideal in a ring $(R,+,\\cdot)$, and what are its key properties?');
+
+        // The back should include all content including the numbered list with sub-items
+        const expectedBack = `An ideal $I \\subseteq R$ is a subset that's closed under addition and multiplication by any ring element.
+Key properties
+1. $(I,+)$ is a subgroup of $(R,+)$:
+   - If $a,b \\in I$, then $a + b \\in I$
+   - If $a \\in I$, then $-a \\in I$
+   - $0 \\in I$
+2. For all $r \\in R$ and $a \\in I$:
+   $r \\cdot a \\in I$ and $a \\cdot r \\in I$`;
+
+        expect(card.back).toBe(expectedBack);
+        expect(card.type).toBe('basic'); // default type
+        expect(card.tags).toEqual([]);
     });
 });
 
@@ -610,7 +642,7 @@ type: basic
             startCharacter: 0,
             endLine: 3,
             endCharacter: 27,
-            value: 'First line of front\nSecond line of front\nThird line of front'
+            value: 'First line of front\n        Second line of front\n        Third line of front'
         });
 
         // Check back field position
@@ -619,7 +651,7 @@ type: basic
             startCharacter: 4,
             endLine: 6,
             endCharacter: 26,
-            value: 'First line of back\nSecond line of back\nThird line of back'
+            value: 'First line of back\n        Second line of back\n        Third line of back'
         });
     });
 }); 

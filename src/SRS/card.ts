@@ -52,6 +52,33 @@ export interface CardPosition {
 
 type MdCardKey = keyof MdCard;
 
+/**
+ * Preserve relative indentation while removing base indentation
+ * @param lines Array of lines to process
+ * @returns Processed content with relative indentation preserved
+ */
+function preserveRelativeIndentation(lines: string[]): string {
+    if (lines.length === 0) return '';
+
+    // Filter out empty lines for indentation calculation
+    const nonEmptyLines = lines.filter(line => line.trim() !== '');
+    if (nonEmptyLines.length === 0) return '';
+
+    // Find the minimum indentation (number of leading spaces) among non-empty lines
+    let minIndent = Math.min(...nonEmptyLines.map(line => {
+        const match = line.match(/^(\s*)/);
+        return match ? match[1].length : 0;
+    }));
+
+    // Remove the base indentation while preserving relative indentation
+    const processedLines = lines.map(line => {
+        if (line.trim() === '') return ''; // Keep empty lines as empty
+        return line.slice(minIndent); // Remove base indentation
+    });
+
+    return processedLines.join('\n').trim();
+}
+
 function setCardField(card: Partial<MdCard>, field: MdCardKey | string, value: string): void {
     switch (field) {
         case 'front':
@@ -137,7 +164,7 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
         if (fieldMatch) {
             // Save previous field if exists
             if (currentField && currentFieldStart) {
-                const fieldValue = currentValue.map(line => line.trim()).join('\n').trim();
+                const fieldValue = preserveRelativeIndentation(currentValue);
                 setCardField(card, currentField, fieldValue);
                 position.fields.set(currentField, {
                     startLine: startLine + currentFieldStart.line,
@@ -187,7 +214,7 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
 
     // Save the last field if exists
     if (currentField && currentFieldStart) {
-        const fieldValue = currentValue.map(line => line.trim()).join('\n').trim();
+        const fieldValue = preserveRelativeIndentation(currentValue);
         setCardField(card, currentField, fieldValue);
         position.fields.set(currentField, {
             startLine: startLine + currentFieldStart.line,
