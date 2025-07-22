@@ -145,7 +145,7 @@ export class CardManager implements vscode.Disposable {
         for (const cards of this.cardsByFile.values()) {
             allCards.push(...cards);
         }
-        return allCards;
+        return allCards.filter(card => !card.disabled);
     }
 
     /**
@@ -310,6 +310,96 @@ difficulty: medium
     }
 
     /**
+     * Disable the current file by adding a disabled marker at the top
+     */
+    public async disableCurrentFile(): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showInformationMessage('No active text editor');
+            return;
+        }
+
+        const document = editor.document;
+        if (!document.fileName.endsWith('.md')) {
+            vscode.window.showWarningMessage('Current file is not a markdown file');
+            return;
+        }
+
+        // Check if the file is already disabled
+        const content = document.getText();
+        const lines = content.split('\n').slice(0, 10);
+        const isAlreadyDisabled = lines.some(line =>
+            line.trim().match(/^<!--\s*lattice:disabled\s*-->$/i) ||
+            line.trim().match(/^<!--\s*disabled\s*-->$/i)
+        );
+
+        if (isAlreadyDisabled) {
+            vscode.window.showInformationMessage('File is already disabled');
+            return;
+        }
+
+        // Add the disabled marker at the top of the file
+        const edit = new vscode.WorkspaceEdit();
+        const disabledMarker = '<!-- lattice:disabled -->\n';
+        edit.insert(document.uri, new vscode.Position(0, 0), disabledMarker);
+
+        await vscode.workspace.applyEdit(edit);
+        vscode.window.showInformationMessage('File disabled. Cards from this file will no longer appear in reviews.');
+
+        // Trigger a refresh of the file
+        this.handleFileChange(document.uri);
+    }
+
+    /**
+     * Enable the current file by removing the disabled marker
+     */
+    public async enableCurrentFile(): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showInformationMessage('No active text editor');
+            return;
+        }
+
+        const document = editor.document;
+        if (!document.fileName.endsWith('.md')) {
+            vscode.window.showWarningMessage('Current file is not a markdown file');
+            return;
+        }
+
+        // Find and remove the disabled marker
+        const content = document.getText();
+        const lines = content.split('\n');
+        let disabledLineIndex = -1;
+
+        for (let i = 0; i < Math.min(10, lines.length); i++) {
+            if (lines[i].trim().match(/^<!--\s*lattice:disabled\s*-->$/i) ||
+                lines[i].trim().match(/^<!--\s*disabled\s*-->$/i)) {
+                disabledLineIndex = i;
+                break;
+            }
+        }
+
+        if (disabledLineIndex === -1) {
+            vscode.window.showInformationMessage('File is not disabled');
+            return;
+        }
+
+        // Remove the disabled marker line
+        const edit = new vscode.WorkspaceEdit();
+        const lineRange = new vscode.Range(
+            new vscode.Position(disabledLineIndex, 0),
+            new vscode.Position(disabledLineIndex + 1, 0)
+        );
+        edit.delete(document.uri, lineRange);
+
+        await vscode.workspace.applyEdit(edit);
+        vscode.window.showInformationMessage('File enabled. Cards from this file will now appear in reviews.');
+
+        // Trigger a refresh of the file
+        this.handleFileChange(document.uri);
+    }
+
+    /**
      * Get the review state for a card
      * @param card The card to get the review state for
      * @returns The FSRS card state
@@ -335,7 +425,7 @@ difficulty: medium
      */
     public getDueCards(now?: Date): MdCard[] {
         const dueCardIds = this.reviewState.getDueCards(now);
-        return this.getAllCards().filter(card => card.id && dueCardIds.includes(card.id));
+        return this.getAllCards().filter(card => !card.disabled && card.id && dueCardIds.includes(card.id));
     }
 
     /**

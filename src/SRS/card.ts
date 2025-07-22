@@ -12,6 +12,7 @@ export interface MdCard {
     type: 'basic' | 'problem' | 'derivation' | string;
     title?: string;
     steps?: boolean;
+    disabled?: boolean;
     difficulty?: 'easy' | 'medium' | 'hard';
     extraFields?: Record<string, string>;
     // Source information
@@ -69,6 +70,9 @@ function setCardField(card: Partial<MdCard>, field: MdCardKey | string, value: s
             break;
         case 'steps':
             card.steps = value.toLowerCase() === 'true';
+            break;
+        case 'disabled':
+            card.disabled = value.toLowerCase() === 'true';
             break;
         case 'difficulty':
             if (value === 'easy' || value === 'medium' || value === 'hard') {

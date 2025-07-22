@@ -10,5 +10,7 @@ export default defineConfig({
             tsconfig: './tsconfig.json'
         },
         watch: false,
+        mockReset: true,
+        setupFiles: ['src/test/setup.ts'],
     },
 }); 

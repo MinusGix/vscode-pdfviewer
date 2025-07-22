@@ -4,94 +4,6 @@ import { CardManager, CardUpdateEvent } from './cardManager';
 import { MdParser } from './mdParser';
 import { MdCard, CardPosition } from './card';
 
-// Mock VSCode APIs
-vi.mock('vscode', () => {
-    let workspaceFoldersCallback: Function;
-    return {
-        EventEmitter: class {
-            private listeners: Function[] = [];
-            public event = (listener: Function) => {
-                this.listeners.push(listener);
-                return { dispose: () => { } };
-            };
-            public fire(event: any) {
-                this.listeners.forEach(listener => listener(event));
-            }
-            public dispose() { }
-        },
-        Uri: {
-            file: (path: string) => ({
-                fsPath: path,
-                toString: () => path,
-                // Add these for proper object comparison
-                scheme: 'file',
-                path: path
-            }),
-            parse: (uri: string) => ({
-                fsPath: uri,
-                toString: () => uri,
-                scheme: uri.startsWith('file:') ? 'file' : 'untitled',
-                path: uri
-            })
-        },
-        window: {
-            createStatusBarItem: () => ({
-                show: vi.fn(),
-                dispose: vi.fn(),
-                hide: vi.fn()
-            }),
-            showWarningMessage: vi.fn(),
-            showErrorMessage: vi.fn(),
-            showInformationMessage: vi.fn()
-        },
-        ThemeColor: class {
-            constructor(public id: string) { }
-        },
-        StatusBarAlignment: {
-            Left: 1
-        },
-        RelativePattern: class {
-            baseUri: vscode.Uri;
-            path: string;
-            constructor(public base: vscode.WorkspaceFolder | string, public pattern: string) {
-                // Initialize required properties
-                if (typeof base === 'string') {
-                    this.baseUri = vscode.Uri.file(base);
-                    this.path = base;
-                } else {
-                    this.baseUri = base.uri;
-                    this.path = base.uri.fsPath;
-                }
-            }
-        },
-        workspace: {
-            createFileSystemWatcher: () => ({
-                onDidChange: (callback: Function) => ({ dispose: () => { } }),
-                onDidCreate: (callback: Function) => ({ dispose: () => { } }),
-                onDidDelete: (callback: Function) => ({ dispose: () => { } }),
-                dispose: () => { }
-            }),
-            onDidChangeWorkspaceFolders: (callback: Function) => {
-                workspaceFoldersCallback = callback;
-                return { dispose: () => { } };
-            },
-            fireWorkspaceFoldersChange: (e: any) => workspaceFoldersCallback(e),
-            findFiles: vi.fn().mockResolvedValue([]),
-            fs: {
-                readFile: async () => new Uint8Array()
-            },
-            workspaceFolders: [{
-                uri: { fsPath: '/test/workspace' },
-                name: 'test',
-                index: 0
-            }],
-            getConfiguration: () => ({
-                get: (key: string, defaultValue: any) => defaultValue
-            })
-        }
-    };
-});
-
 // Mock MdParser
 vi.mock('./mdParser', () => ({
     MdParser: {
@@ -467,6 +379,201 @@ describe('CardManager', () => {
                 mockUri1.toString(),
                 mockUri2.toString()
             ]);
+        });
+    });
+
+    describe('file disable/enable functionality', () => {
+        let mockActiveEditor: any;
+        let mockDocument: any;
+        let mockWorkspaceEditInstance: any;
+
+        beforeEach(() => {
+            mockDocument = {
+                uri: vscode.Uri.file('test.md'),
+                fileName: 'test.md',
+                getText: vi.fn()
+            };
+
+            mockActiveEditor = {
+                document: mockDocument,
+                edit: vi.fn(),
+                selection: {
+                    active: new vscode.Position(0, 0)
+                }
+            };
+
+            mockWorkspaceEditInstance = {
+                insert: vi.fn(),
+                delete: vi.fn()
+            };
+
+            // Reset mocks
+            vi.mocked(vscode.WorkspaceEdit).mockClear();
+            vi.mocked(vscode.WorkspaceEdit).mockReturnValue(mockWorkspaceEditInstance);
+            vi.mocked(vscode.window.showInformationMessage).mockClear();
+            vi.mocked(vscode.window.showWarningMessage).mockClear();
+            vi.mocked(vscode.workspace.applyEdit).mockClear();
+        });
+
+        describe('disableCurrentFile', () => {
+            it('should add disabled marker to file', async () => {
+                const fileContent = '# Test File\n\n:::card\nfront: Test\nback: Test back\ntype: basic\n:::';
+
+                mockDocument.getText.mockReturnValue(fileContent);
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(mockActiveEditor),
+                    configurable: true
+                });
+
+                await manager.disableCurrentFile();
+
+                expect(vscode.WorkspaceEdit).toHaveBeenCalled();
+                expect(mockWorkspaceEditInstance.insert).toHaveBeenCalledWith(
+                    mockDocument.uri,
+                    new vscode.Position(0, 0),
+                    '<!-- lattice:disabled -->\n'
+                );
+                expect(vscode.workspace.applyEdit).toHaveBeenCalledWith(mockWorkspaceEditInstance);
+                expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+                    'File disabled. Cards from this file will no longer appear in reviews.'
+                );
+            });
+
+            it('should show warning for non-markdown file', async () => {
+                mockDocument.fileName = 'test.txt';
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(mockActiveEditor),
+                    configurable: true
+                });
+
+                await manager.disableCurrentFile();
+
+                expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+                    'Current file is not a markdown file'
+                );
+                expect(vscode.WorkspaceEdit).not.toHaveBeenCalled();
+            });
+
+            it('should show message if file is already disabled', async () => {
+                const fileContent = '<!-- lattice:disabled -->\n# Test File\n\n:::card\nfront: Test\nback: Test back\ntype: basic\n:::';
+
+                mockDocument.getText.mockReturnValue(fileContent);
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(mockActiveEditor),
+                    configurable: true
+                });
+
+                await manager.disableCurrentFile();
+
+                expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+                    'File is already disabled'
+                );
+                expect(vscode.WorkspaceEdit).not.toHaveBeenCalled();
+            });
+
+            it('should show message when no active editor', async () => {
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(undefined),
+                    configurable: true
+                });
+
+                await manager.disableCurrentFile();
+
+                expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+                    'No active text editor'
+                );
+            });
+        });
+
+        describe('enableCurrentFile', () => {
+            it('should remove disabled marker from file', async () => {
+                const fileContent = '<!-- lattice:disabled -->\n# Test File\n\n:::card\nfront: Test\nback: Test back\ntype: basic\n:::';
+
+                mockDocument.getText.mockReturnValue(fileContent);
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(mockActiveEditor),
+                    configurable: true
+                });
+
+                await manager.enableCurrentFile();
+
+                expect(vscode.WorkspaceEdit).toHaveBeenCalled();
+                expect(mockWorkspaceEditInstance.delete).toHaveBeenCalledWith(
+                    mockDocument.uri,
+                    new vscode.Range(
+                        new vscode.Position(0, 0),
+                        new vscode.Position(1, 0)
+                    )
+                );
+                expect(vscode.workspace.applyEdit).toHaveBeenCalledWith(mockWorkspaceEditInstance);
+                expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+                    'File enabled. Cards from this file will now appear in reviews.'
+                );
+            });
+
+            it('should handle disabled marker in different positions', async () => {
+                const fileContent = '# Test File\n<!-- lattice:disabled -->\n\n:::card\nfront: Test\nback: Test back\ntype: basic\n:::';
+
+                mockDocument.getText.mockReturnValue(fileContent);
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(mockActiveEditor),
+                    configurable: true
+                });
+
+                await manager.enableCurrentFile();
+
+                expect(mockWorkspaceEditInstance.delete).toHaveBeenCalledWith(
+                    mockDocument.uri,
+                    new vscode.Range(
+                        new vscode.Position(1, 0),
+                        new vscode.Position(2, 0)
+                    )
+                );
+            });
+
+            it('should show message if file is not disabled', async () => {
+                const fileContent = '# Test File\n\n:::card\nfront: Test\nback: Test back\ntype: basic\n:::';
+
+                mockDocument.getText.mockReturnValue(fileContent);
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(mockActiveEditor),
+                    configurable: true
+                });
+
+                await manager.enableCurrentFile();
+
+                expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+                    'File is not disabled'
+                );
+                expect(vscode.WorkspaceEdit).not.toHaveBeenCalled();
+            });
+
+            it('should show warning for non-markdown file', async () => {
+                mockDocument.fileName = 'test.txt';
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(mockActiveEditor),
+                    configurable: true
+                });
+
+                await manager.enableCurrentFile();
+
+                expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+                    'Current file is not a markdown file'
+                );
+            });
+
+            it('should show message when no active editor', async () => {
+                Object.defineProperty(vscode.window, 'activeTextEditor', {
+                    get: vi.fn().mockReturnValue(undefined),
+                    configurable: true
+                });
+
+                await manager.enableCurrentFile();
+
+                expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+                    'No active text editor'
+                );
+            });
         });
     });
 }); 

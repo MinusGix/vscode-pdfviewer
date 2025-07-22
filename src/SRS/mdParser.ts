@@ -8,6 +8,20 @@ export interface ParseResult {
 
 export class MdParser {
     /**
+     * Check if a file is marked as disabled
+     * @param mdContent The content of the markdown file
+     * @returns true if the file is disabled, false otherwise
+     */
+    private static isFileDisabled(mdContent: string): boolean {
+        // Check for lattice:disabled marker in the first few lines
+        const lines = mdContent.split('\n').slice(0, 10); // Only check first 10 lines
+        return lines.some(line =>
+            line.trim().match(/^<!--\s*lattice:disabled\s*-->$/i) ||
+            line.trim().match(/^<!--\s*disabled\s*-->$/i)
+        );
+    }
+
+    /**
      * Parse a markdown file for MdCards
      * @param uri The URI of the markdown file to parse
      * @returns Array of MdCard objects found in the file
@@ -16,6 +30,12 @@ export class MdParser {
         try {
             const document = await vscode.workspace.openTextDocument(uri);
             const mdContent = document.getText();
+
+            // Check if the file is disabled
+            if (this.isFileDisabled(mdContent)) {
+                return { cards: [], positions: [] };
+            }
+
             const results = extractMdCardsWithPosition(mdContent, uri.fsPath);
             return {
                 cards: results.map(r => r.card),

@@ -229,6 +229,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
+  // Register file disable/enable commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.disableFile', () => {
+      cardManager.disableCurrentFile();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.enableFile', () => {
+      cardManager.enableCurrentFile();
+    })
+  );
+
   console.log('Lattice extension activated');
 }
 

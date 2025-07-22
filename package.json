@@ -138,6 +138,16 @@
         "command": "lattice.toggleBlockquote",
         "title": "Toggle Blockquote",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.disableFile",
+        "title": "Disable File for Cards",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.enableFile",
+        "title": "Enable File for Cards",
+        "category": "Lattice"
       }
     ],
     "grammars": [

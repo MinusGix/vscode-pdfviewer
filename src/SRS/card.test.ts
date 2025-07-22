@@ -159,6 +159,35 @@ steps: not-a-boolean`;
         expect(invalidCard.steps).toBe(false);
     });
 
+    test('handles boolean disabled field correctly', () => {
+        const trueContent = `front: Test
+back: Test back
+type: basic
+disabled: true`;
+        const trueCard = parseMdCard(trueContent);
+        expect(trueCard.disabled).toBe(true);
+
+        const falseContent = `front: Test
+back: Test back
+type: basic
+disabled: false`;
+        const falseCard = parseMdCard(falseContent);
+        expect(falseCard.disabled).toBe(false);
+
+        const invalidContent = `front: Test
+back: Test back
+type: basic
+disabled: not-a-boolean`;
+        const invalidCard = parseMdCard(invalidContent);
+        expect(invalidCard.disabled).toBe(false);
+
+        const missingContent = `front: Test
+back: Test back
+type: basic`;
+        const missingCard = parseMdCard(missingContent);
+        expect(missingCard.disabled).toBeUndefined();
+    });
+
     test('handles tags edge cases', () => {
         const emptyTags = parseMdCard(`
 front: Test
