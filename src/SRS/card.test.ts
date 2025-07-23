@@ -317,6 +317,32 @@ Key properties
         expect(card.type).toBe('basic'); // default type
         expect(card.tags).toEqual([]);
     });
+
+    test('handles content ending with example line containing colons', () => {
+        const content = `id: TBqkSM2iQxEwPGRbAGa7q
+front: What is a prime ideal? Give both definitions and an example.
+back: A prime ideal $P$ is a proper ideal with the following equivalent definitions,
+1. For any $a,b \\in R$: if $a \\cdot b \\in P$, then either $a \\in P$ or $b \\in P$
+2. The quotient ring $R/P$ is an integral domain
+
+Example In $\\mathbb{Z}$, $(2) = \\{2k : k \\in \\mathbb{Z}\\}$ is prime`;
+
+        const card = parseMdCard(content);
+
+        expect(card.id).toBe('TBqkSM2iQxEwPGRbAGa7q');
+        expect(card.front).toBe('What is a prime ideal? Give both definitions and an example.');
+
+        // The back should include all content including the example line at the end
+        const expectedBack = `A prime ideal $P$ is a proper ideal with the following equivalent definitions,
+1. For any $a,b \\in R$: if $a \\cdot b \\in P$, then either $a \\in P$ or $b \\in P$
+2. The quotient ring $R/P$ is an integral domain
+
+Example In $\\mathbb{Z}$, $(2) = \\{2k : k \\in \\mathbb{Z}\\}$ is prime`;
+
+        expect(card.back).toBe(expectedBack);
+        expect(card.type).toBe('basic'); // default type
+        expect(card.tags).toEqual([]);
+    });
 });
 
 describe('extractMdCards', () => {
@@ -556,7 +582,7 @@ type: basic
             startLine: 1,
             startCharacter: 0,
             endLine: 1,
-            endCharacter: 20,
+            endCharacter: 19,
             value: 'Indented card'
         });
 
@@ -565,7 +591,7 @@ type: basic
             startLine: 2,
             startCharacter: 4,
             endLine: 2,
-            endCharacter: 25,
+            endCharacter: 24,
             value: 'Indented answer'
         });
 

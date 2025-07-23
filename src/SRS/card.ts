@@ -79,6 +79,33 @@ function preserveRelativeIndentation(lines: string[]): string {
     return processedLines.join('\n').trim();
 }
 
+/**
+ * Look ahead from the current position to see if there's more content that should be part of the current field
+ * @param lines All lines
+ * @param currentIndex Current line index
+ * @returns true if there's more content after empty lines that should be part of this field
+ */
+function hasMoreFieldContent(lines: string[], currentIndex: number): boolean {
+    // Look at lines after the current one
+    for (let i = currentIndex + 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // If we find a non-empty line
+        if (line) {
+            // If it's a new field definition, then there's no more content for current field
+            if (line.match(/^(\w+):\s*(.*)$/)) {
+                return false;
+            }
+            // Otherwise, there's more content for the current field
+            return true;
+        }
+        // If it's an empty line, continue looking ahead
+    }
+
+    // No more content found
+    return false;
+}
+
 function setCardField(card: Partial<MdCard>, field: MdCardKey | string, value: string): void {
     switch (field) {
         case 'front':
@@ -156,8 +183,14 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmedLine = line.trim();
-        // Skip empty lines
-        if (!trimmedLine) continue;
+        // Skip empty lines only if we're not currently collecting multiline content
+        if (!trimmedLine && !currentField) continue;
+
+        // If we have an empty line and we're collecting multiline content, add it
+        if (!trimmedLine && currentField) {
+            currentValue.push(line);
+            continue;
+        }
 
         // Check if this is a new field
         const fieldMatch = trimmedLine.match(/^(\w+):\s*(.*)$/);
@@ -186,8 +219,8 @@ export function parseMdCardWithPosition(content: string, startLine: number): { c
             if (!value.trim()) {
                 currentValue = [];
                 isMultiline = true;
-            } else if (i < lines.length - 1 && !lines[i + 1].match(/^\w+:/) && lines[i + 1].trim()) {
-                // There's actual content (not just whitespace) on the next line and it's not a new field
+            } else if (hasMoreFieldContent(lines, i)) {
+                // There's more content (possibly after empty lines) that should be part of this field
                 currentValue = [value];
                 isMultiline = true;
             } else {
