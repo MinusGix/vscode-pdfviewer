@@ -5,6 +5,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import { openUrlInWebview } from './extension';
+import { DocumentTitleManager } from './documentTitles';
 
 interface UrlFileConfig {
     url: string;
@@ -65,6 +66,7 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
     ): Promise<void> {
         this._activeDocument = document;
         this._activeWebview = webviewPanel.webview;
+        try { DocumentTitleManager.getInstance().updateStatusBar(document.uri); } catch { }
 
         webviewPanel.webview.options = {
             enableScripts: true,
@@ -82,6 +84,14 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
             if (this._activeDocument === document) {
                 this._activeDocument = undefined;
                 this._activeWebview = undefined;
+            }
+        });
+
+        webviewPanel.onDidChangeViewState(() => {
+            if (webviewPanel.active) {
+                try { DocumentTitleManager.getInstance().updateStatusBar(document.uri); } catch { }
+            } else {
+                try { DocumentTitleManager.getInstance().updateStatusBar(vscode.Uri.file('')); } catch { }
             }
         });
 
@@ -111,6 +121,10 @@ export class WebPreviewProvider implements vscode.CustomEditorProvider {
         } catch (error) {
             webviewPanel.webview.html = this.getErrorHtml('Error loading URL');
         }
+    }
+
+    public get activeDocumentUri(): vscode.Uri | undefined {
+        return this._activeDocument?.uri;
     }
 
     public async handleCopy(): Promise<void> {

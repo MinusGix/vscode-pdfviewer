@@ -8,6 +8,8 @@ import { MdParser } from './SRS/mdParser';
 import { CardReviewView } from './SRS/cardReviewView';
 import { CardListView } from './SRS/cardListView';
 import { toggleBlockquote } from './utils/blockquote';
+import { LiveMdEditorProvider } from './markdown/liveMdEditorProvider';
+import { NotesAssociationManager } from './notesAssociation';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
@@ -51,23 +53,58 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   await cardManager.initialize();
   context.subscriptions.push(cardManager);
 
-  // Track active custom editor tab
-  context.subscriptions.push(
-    vscode.window.tabGroups.onDidChangeTabs(e => {
-      const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-      if (activeTab?.input instanceof vscode.TabInputCustom) {
-        if (activeTab.input.viewType === PdfCustomProvider.viewType ||
-          activeTab.input.viewType === WebPreviewProvider.viewType) {
-          activeCustomEditorTab = activeTab;
-          DocumentTitleManager.getInstance().updateStatusBar(activeTab.input.uri);
-          return;
-        }
+  // Track active custom editor tab more robustly: listen to both tab changes and active editor changes
+  const updateActiveUiFromWindow = () => {
+    const activeTab = vscode.window.tabGroups.activeTabGroup?.activeTab;
+    const pdfUri = getActivePdfUriNow();
+
+    if (activeTab?.input instanceof vscode.TabInputCustom) {
+      if (activeTab.input.viewType === PdfCustomProvider.viewType ||
+        activeTab.input.viewType === WebPreviewProvider.viewType) {
+        activeCustomEditorTab = activeTab;
+        DocumentTitleManager.getInstance().updateStatusBar(activeTab.input.uri);
+        vscode.commands.executeCommand('setContext', 'lattice.isPdfPreviewActive', activeTab.input.viewType === PdfCustomProvider.viewType);
+        vscode.commands.executeCommand('setContext', 'lattice.isWebPreviewActive', activeTab.input.viewType === WebPreviewProvider.viewType);
       }
+    } else {
       activeCustomEditorTab = undefined;
-      // Hide status bar when no custom editor is active
+      vscode.commands.executeCommand('setContext', 'lattice.isPdfPreviewActive', false);
+      vscode.commands.executeCommand('setContext', 'lattice.isWebPreviewActive', false);
       DocumentTitleManager.getInstance().updateStatusBar(vscode.Uri.file(''));
-    })
+    }
+
+    // Update notes association button for any active PDF (custom or text editor)
+    NotesAssociationManager.getInstance().updateActivePdf(pdfUri);
+  };
+
+  const getActivePdfUriNow = (): vscode.Uri | undefined => {
+    const activeTab = vscode.window.tabGroups.activeTabGroup?.activeTab;
+    if (!activeTab) { return undefined; }
+    const asPdf = (uri: vscode.Uri | undefined): vscode.Uri | undefined => {
+      if (!uri) { return undefined; }
+      return uri.fsPath.toLowerCase().endsWith('.pdf') ? uri : undefined;
+    };
+    if (activeTab.input instanceof vscode.TabInputCustom) {
+      // Prefer our custom editor type, but accept any .pdf URI as fallback
+      if (activeTab.input.viewType === PdfCustomProvider.viewType) {
+        return activeTab.input.uri;
+      }
+      return asPdf(activeTab.input.uri);
+    }
+    if (activeTab.input instanceof vscode.TabInputText) {
+      return asPdf(activeTab.input.uri);
+    }
+    return undefined;
+  };
+
+  context.subscriptions.push(
+    vscode.window.tabGroups.onDidChangeTabs(() => updateActiveUiFromWindow()),
+    vscode.window.onDidChangeActiveTextEditor(() => updateActiveUiFromWindow()),
+    vscode.window.onDidChangeVisibleTextEditors(() => updateActiveUiFromWindow()),
   );
+
+  // Prime initial UI context/state
+  updateActiveUiFromWindow();
 
   // Register Web preview provider
   const webProvider = new WebPreviewProvider(extensionRoot);
@@ -97,6 +134,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     )
   );
+
+  // Initialize notes association manager and ensure it is disposed
+  const notesAssoc = NotesAssociationManager.getInstance();
+  context.subscriptions.push({ dispose: () => notesAssoc.dispose() });
+
+  // // Register live markdown editor provider
+  // context.subscriptions.push(
+  //   vscode.window.registerCustomEditorProvider(
+  //     LiveMdEditorProvider.viewType,
+  //     new LiveMdEditorProvider(context),
+  //     {
+  //       webviewOptions: {
+  //         retainContextWhenHidden: true,
+  //       },
+  //     }
+  //   )
+  // );
 
   // Add command registrations
   context.subscriptions.push(
@@ -137,6 +191,43 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
+  // Notes association commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.associateNotesWithPdf', async () => {
+      const activePdfUri = getActivePdfUriNow() ?? pdfProvider.activePreview?.resource;
+      if (!activePdfUri) {
+        vscode.window.showErrorMessage('No active PDF');
+        return;
+      }
+      notesAssoc.updateActivePdf(activePdfUri);
+      await NotesAssociationManager.getInstance().associateWithActivePdf(activePdfUri);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.openAssociatedNotes', async () => {
+      const activePdfUri = getActivePdfUriNow() ?? pdfProvider.activePreview?.resource;
+      if (!activePdfUri) {
+        vscode.window.showErrorMessage('No active PDF');
+        return;
+      }
+      NotesAssociationManager.getInstance().updateActivePdf(activePdfUri);
+      await NotesAssociationManager.getInstance().openAssociated('beside');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.openAssociatedNotesHere', async () => {
+      const activePdfUri = getActivePdfUriNow() ?? pdfProvider.activePreview?.resource;
+      if (!activePdfUri) {
+        vscode.window.showErrorMessage('No active PDF');
+        return;
+      }
+      NotesAssociationManager.getInstance().updateActivePdf(activePdfUri);
+      await NotesAssociationManager.getInstance().openAssociated('current');
+    })
+  );
+
   // Add the new command registration
   context.subscriptions.push(
     vscode.commands.registerCommand('lattice.openUrl', async () => {
@@ -162,15 +253,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Register edit title command
   context.subscriptions.push(
     vscode.commands.registerCommand('lattice.editTitle', async () => {
-      if (!activeCustomEditorTab) {
+      const targetUri = getActivePdfUriNow() ?? pdfProvider.activePreview?.resource ?? (
+        vscode.window.tabGroups.activeTabGroup?.activeTab?.input instanceof vscode.TabInputCustom
+          ? vscode.window.tabGroups.activeTabGroup?.activeTab?.input.uri
+          : undefined
+      );
+      if (!targetUri) {
         vscode.window.showErrorMessage('No active document to edit title');
         return;
       }
-
-      const input = activeCustomEditorTab.input;
-      if (input instanceof vscode.TabInputCustom) {
-        await DocumentTitleManager.getInstance().editTitle(input.uri);
-      }
+      await DocumentTitleManager.getInstance().editTitle(targetUri);
     })
   );
 

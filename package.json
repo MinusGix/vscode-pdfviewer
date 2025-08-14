@@ -81,8 +81,7 @@
       {
         "command": "lattice.editTitle",
         "title": "Edit Document Title",
-        "category": "Lattice",
-        "enablement": "activeCustomEditorId == 'lattice.preview' || activeCustomEditorId == 'lattice.webPreview'"
+        "category": "Lattice"
       },
       {
         "command": "lattice.openUrlFrame",
@@ -148,6 +147,21 @@
         "command": "lattice.enableFile",
         "title": "Enable File for Cards",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.associateNotesWithPdf",
+        "title": "Associate Notes with PDF",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.openAssociatedNotes",
+        "title": "Open Associated Notes (Split)",
+        "category": "Lattice"
+      },
+      {
+        "command": "lattice.openAssociatedNotesHere",
+        "title": "Open Associated Notes (Here)",
+        "category": "Lattice"
       }
     ],
     "grammars": [
@@ -175,6 +189,15 @@
         "selector": [
           {
             "filenamePattern": "*.url"
+          }
+        ]
+      },
+      {
+        "viewType": "lattice.liveMarkdown",
+        "displayName": "Lattice Live Markdown",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
           }
         ]
       }
@@ -275,6 +298,19 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "lattice.associatedNotes": {
+          "markdownDescription": "Internal mapping from PDF absolute paths to associated notes absolute paths. You can edit this manually if needed.",
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "lattice.associatedNotes.alwaysShowButton": {
+          "markdownDescription": "Always show the Associated Notes status bar button for testing.",
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -287,6 +323,16 @@
       {
         "command": "lattice.preview.highlight",
         "key": "ctrl+h",
+        "when": "resourceExtname == .pdf"
+      },
+      {
+        "command": "lattice.associateNotesWithPdf",
+        "key": "ctrl+alt+a",
+        "when": "resourceExtname == .pdf"
+      },
+      {
+        "command": "lattice.openAssociatedNotes",
+        "key": "ctrl+alt+o",
         "when": "resourceExtname == .pdf"
       }
     ]

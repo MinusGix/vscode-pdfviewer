@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { PdfPreview } from './pdfPreview';
+import { DocumentTitleManager } from './documentTitles';
+import { NotesAssociationManager } from './notesAssociation';
 
 // TODO: we could have deeper integration with vscode's undo/redo system via CustomDocumentEditEvent's undo/redo methods.
 // however, that would require more message passing between the webview and the extension and some reimplementation. I don't think it is worthwhile.
@@ -37,17 +39,27 @@ export class PdfCustomProvider implements vscode.CustomEditorProvider {
     );
     this._previews.add(preview);
     this.setActivePreview(preview);
+    try {
+      DocumentTitleManager.getInstance().updateStatusBar(document.uri);
+    } catch { /* ignore if not initialized yet */ }
+    try {
+      NotesAssociationManager.getInstance().updateActivePdf(document.uri);
+    } catch { /* ignore if not available */ }
 
     webviewEditor.onDidDispose(() => {
       preview.dispose();
       this._previews.delete(preview);
+      try { NotesAssociationManager.getInstance().updateActivePdf(undefined); } catch { }
     });
 
     webviewEditor.onDidChangeViewState(() => {
       if (webviewEditor.active) {
         this.setActivePreview(preview);
+        try { DocumentTitleManager.getInstance().updateStatusBar(document.uri); } catch { }
+        try { NotesAssociationManager.getInstance().updateActivePdf(document.uri); } catch { }
       } else if (this._activePreview === preview && !webviewEditor.active) {
         this.setActivePreview(undefined);
+        try { NotesAssociationManager.getInstance().updateActivePdf(undefined); } catch { }
       }
     });
 
