@@ -8,37 +8,34 @@ let rehypeKatex: any;
 let rehypeStringify: any;
 let visit: any;
 
-// Helper to create dynamic import that Parcel won't bundle
-const dynamicImport = new Function('specifier', 'return import(specifier)');
-
 // Initialize dynamic imports
 async function initializeImports() {
     if (!unified) {
         try {
-            const unifiedModule = await dynamicImport("unified");
+            const unifiedModule = await import("unified");
             console.log("Unified module:", typeof unifiedModule, Object.keys(unifiedModule));
             unified = unifiedModule.unified;
             console.log("Unified function:", typeof unified);
 
-            const remarkParseModule = await dynamicImport("remark-parse");
+            const remarkParseModule = await import("remark-parse");
             remarkParse = remarkParseModule.default;
 
-            const remarkGfmModule = await dynamicImport("remark-gfm");
+            const remarkGfmModule = await import("remark-gfm");
             remarkGfm = remarkGfmModule.default;
 
-            const remarkMathModule = await dynamicImport("remark-math");
+            const remarkMathModule = await import("remark-math");
             remarkMath = remarkMathModule.default;
 
-            const remarkRehypeModule = await dynamicImport("remark-rehype");
+            const remarkRehypeModule = await import("remark-rehype");
             remarkRehype = remarkRehypeModule.default;
 
-            const rehypeKatexModule = await dynamicImport("rehype-katex");
+            const rehypeKatexModule = await import("rehype-katex");
             rehypeKatex = rehypeKatexModule.default;
 
-            const rehypeStringifyModule = await dynamicImport("rehype-stringify");
+            const rehypeStringifyModule = await import("rehype-stringify");
             rehypeStringify = rehypeStringifyModule.default;
 
-            const visitModule = await dynamicImport("unist-util-visit");
+            const visitModule = await import("unist-util-visit");
             visit = visitModule.visit;
 
             console.log("All imports initialized successfully");
