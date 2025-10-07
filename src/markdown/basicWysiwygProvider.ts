@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
+import { MarkdownRenderer } from "./markdownRenderer";
 
 export class BasicWysiwygProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = "lattice.basicWysiwyg";
+  private readonly markdownRenderer = new MarkdownRenderer();
 
   constructor(private readonly context: vscode.ExtensionContext) { }
 
@@ -20,13 +22,13 @@ export class BasicWysiwygProvider implements vscode.CustomTextEditorProvider {
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
     // Send initial document content
-    this.updateWebview(document, webviewPanel);
+    await this.updateWebview(document, webviewPanel);
 
     // Listen for document changes
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(
-      (e) => {
+      async (e) => {
         if (e.document.uri.toString() === document.uri.toString()) {
-          this.updateWebview(document, webviewPanel);
+          await this.updateWebview(document, webviewPanel);
         }
       }
     );
@@ -60,13 +62,17 @@ export class BasicWysiwygProvider implements vscode.CustomTextEditorProvider {
     await vscode.workspace.applyEdit(edit);
   }
 
-  private updateWebview(
+  private async updateWebview(
     document: vscode.TextDocument,
     webviewPanel: vscode.WebviewPanel
-  ): void {
+  ): Promise<void> {
+    const markdownText = document.getText();
+    const renderedHtml = await this.markdownRenderer.render(markdownText);
+
     webviewPanel.webview.postMessage({
       type: "update",
-      text: document.getText(),
+      text: markdownText,
+      html: renderedHtml,
     });
   }
 

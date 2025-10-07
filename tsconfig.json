@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
-        "module": "Node16",
-        "target": "ES2020",
+        "module": "commonjs",
+        "target": "ESNext",
         "outDir": "out",
         "lib": [
             "ES2020"
@@ -9,9 +9,11 @@
         "sourceMap": true,
         "rootDir": ".",
         "strict": true,
-        "moduleResolution": "node16",
+        "moduleResolution": "node",
+        "downlevelIteration": true,
         "esModuleInterop": true,
-        "skipLibCheck": true
+        "allowSyntheticDefaultImports": true,
+        "skipLibCheck": true,
     },
     "exclude": [
         "node_modules",
