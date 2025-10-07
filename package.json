@@ -191,6 +191,15 @@
             "filenamePattern": "*.url"
           }
         ]
+      },
+      {
+        "viewType": "lattice.basicWysiwyg",
+        "displayName": "Basic WYSIWYG Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          }
+        ]
       }
     ],
     "menus": {

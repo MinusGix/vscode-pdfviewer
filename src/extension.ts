@@ -9,6 +9,7 @@ import { CardReviewView } from './SRS/cardReviewView';
 import { CardListView } from './SRS/cardListView';
 import { toggleBlockquote } from './utils/blockquote';
 // LiveMdEditorProvider intentionally disabled/unregistered; keep import removed.
+import { BasicWysiwygProvider } from './markdown/basicWysiwygProvider';
 import { NotesAssociationManager } from './notesAssociation';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
@@ -138,6 +139,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Initialize notes association manager and ensure it is disposed
   const notesAssoc = NotesAssociationManager.getInstance();
   context.subscriptions.push({ dispose: () => notesAssoc.dispose() });
+
+  // Register basic WYSIWYG editor provider
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      BasicWysiwygProvider.viewType,
+      new BasicWysiwygProvider(context),
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true,
+        },
+      }
+    )
+  );
 
   // // Register live markdown editor provider
   // context.subscriptions.push(
