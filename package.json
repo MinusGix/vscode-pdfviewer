@@ -191,15 +191,6 @@
             "filenamePattern": "*.url"
           }
         ]
-      },
-      {
-        "viewType": "lattice.liveMarkdown",
-        "displayName": "Lattice Live Markdown",
-        "selector": [
-          {
-            "filenamePattern": "*.md"
-          }
-        ]
       }
     ],
     "menus": {
@@ -298,6 +289,16 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "lattice.cards.reviewOrder": {
+          "markdownDescription": "Order of due cards during review. 'dueTime' respects scheduling due times; 'random-daily-global' uses a deterministic daily shuffle across all due cards; 'random-daily-per-file' shuffles per file to keep related topics together.",
+          "type": "string",
+          "enum": [
+            "dueTime",
+            "random-daily-global",
+            "random-daily-per-file"
+          ],
+          "default": "random-daily-per-file"
         },
         "lattice.associatedNotes": {
           "markdownDescription": "Internal mapping from PDF absolute paths to associated notes absolute paths. You can edit this manually if needed.",

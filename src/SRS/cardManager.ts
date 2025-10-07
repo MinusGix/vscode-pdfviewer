@@ -425,7 +425,48 @@ difficulty: medium
      */
     public getDueCards(now?: Date): MdCard[] {
         const dueCardIds = this.reviewState.getDueCards(now);
-        return this.getAllCards().filter(card => !card.disabled && card.id && dueCardIds.includes(card.id));
+        const dueCards = this.getAllCards().filter(card => !card.disabled && card.id && dueCardIds.includes(card.id));
+
+        // Determine ordering mode
+        const config = vscode.workspace.getConfiguration('lattice.cards');
+        const mode = config.get<'dueTime' | 'random-daily-global' | 'random-daily-per-file'>('reviewOrder', 'random-daily-per-file');
+
+        if (mode === 'dueTime') {
+            // Order by due time ascending
+            return [...dueCards].sort((a, b) => {
+                const aState = this.reviewState.getOrCreateState(a);
+                const bState = this.reviewState.getOrCreateState(b);
+                return aState.due.getTime() - bState.due.getTime();
+            });
+        }
+
+        // Build a deterministic daily seed (local date) for stable ordering
+        const seed = this.getDailySeed();
+
+        // Global shuffle: sort by per-card hash
+        if (mode === 'random-daily-global') {
+            return [...dueCards].sort((a, b) => this.hashForCard(seed, a) - this.hashForCard(seed, b));
+        }
+
+        // Per-file shuffle: order files, then cards within files
+        const groups = new Map<string, MdCard[]>();
+        for (const card of dueCards) {
+            const key = card.sourceFile ?? 'unknown';
+            const arr = groups.get(key) ?? [];
+            arr.push(card);
+            groups.set(key, arr);
+        }
+
+        const files = Array.from(groups.keys());
+        files.sort((a, b) => this.hashForString(seed + '|file|' + a) - this.hashForString(seed + '|file|' + b));
+
+        const ordered: MdCard[] = [];
+        for (const file of files) {
+            const cards = groups.get(file)!;
+            cards.sort((a, b) => this.hashForCard(seed, a) - this.hashForCard(seed, b));
+            ordered.push(...cards);
+        }
+        return ordered;
     }
 
     /**
@@ -479,4 +520,31 @@ difficulty: medium
         }
         this.statusBarItem.show();
     }
-} 
+
+    // --- Ordering helpers ---
+    private getDailySeed(): string {
+        const now = new Date();
+        // Local date yyyy-mm-dd
+        const y = now.getFullYear();
+        const m = (now.getMonth() + 1).toString().padStart(2, '0');
+        const d = now.getDate().toString().padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    private hashForCard(seed: string, card: MdCard): number {
+        const id = card.id ?? `${card.front}|${card.back}`;
+        return this.hashForString(`${seed}|card|${id}`);
+    }
+
+    private hashForString(input: string): number {
+        // Simple 32-bit FNV-1a hash mapped to [0,1)
+        let hash = 0x811c9dc5;
+        for (let i = 0; i < input.length; i++) {
+            hash ^= input.charCodeAt(i);
+            hash = (hash >>> 0) * 0x01000193;
+            hash >>>= 0;
+        }
+        // Convert to a float in [0,1)
+        return (hash >>> 0) / 0xffffffff;
+    }
+}

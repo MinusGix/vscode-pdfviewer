@@ -8,7 +8,7 @@ import { MdParser } from './SRS/mdParser';
 import { CardReviewView } from './SRS/cardReviewView';
 import { CardListView } from './SRS/cardListView';
 import { toggleBlockquote } from './utils/blockquote';
-import { LiveMdEditorProvider } from './markdown/liveMdEditorProvider';
+// LiveMdEditorProvider intentionally disabled/unregistered; keep import removed.
 import { NotesAssociationManager } from './notesAssociation';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
