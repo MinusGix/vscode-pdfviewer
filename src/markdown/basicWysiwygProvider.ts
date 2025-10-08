@@ -67,12 +67,13 @@ export class BasicWysiwygProvider implements vscode.CustomTextEditorProvider {
     webviewPanel: vscode.WebviewPanel
   ): Promise<void> {
     const markdownText = document.getText();
-    const renderedHtml = await this.markdownRenderer.render(markdownText);
+    const renderResult = await this.markdownRenderer.render(markdownText);
 
     webviewPanel.webview.postMessage({
       type: "update",
       text: markdownText,
-      html: renderedHtml,
+      html: renderResult.html,
+      characterMap: renderResult.characterMap,
     });
   }
 
