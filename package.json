@@ -237,6 +237,16 @@
         "command": "lattice.tags.manageTemplates",
         "title": "Manage Tag Templates",
         "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.createAlias",
+        "title": "Create Tag Alias",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.manageAliases",
+        "title": "Manage Tag Aliases",
+        "category": "Lattice Tags"
       }
     ],
     "grammars": [

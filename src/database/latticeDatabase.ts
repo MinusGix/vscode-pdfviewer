@@ -13,6 +13,7 @@ import { SCHEMA_SQL, SCHEMA_VERSION, DROP_ALL_SQL } from './schema';
 import {
   DbFile,
   DbTag,
+  DbTagAlias,
   DbTagInstance,
   DbCard,
   DbDocumentMetadata,
@@ -1111,6 +1112,132 @@ export class LatticeDatabase {
    */
   public getAllTemplatesParsed(): TagTemplate[] {
     return this.getAllTemplates().map((t) => this.parseTemplate(t));
+  }
+
+  // ============================================================
+  // TAG ALIAS OPERATIONS
+  // ============================================================
+
+  /**
+   * Create an alias that resolves to a primary tag.
+   * When users add the alias, the primary tag is applied instead.
+   */
+  public createAlias(alias: string, primaryTag: string): boolean {
+    const normalizedAlias = alias.toLowerCase().trim();
+    const normalizedPrimary = primaryTag.toLowerCase().trim();
+
+    // Check if alias already exists
+    if (this.getAlias(normalizedAlias)) {
+      return false;
+    }
+
+    // Ensure the primary tag exists
+    if (!this.getTag(normalizedPrimary)) {
+      // Auto-create the primary tag
+      this.upsertTag(normalizedPrimary, primaryTag);
+    }
+
+    this.run(
+      'INSERT INTO tag_aliases (alias, primary_tag) VALUES (?, ?)',
+      [normalizedAlias, normalizedPrimary]
+    );
+    return true;
+  }
+
+  /**
+   * Get an alias record
+   */
+  public getAlias(alias: string): DbTagAlias | null {
+    return this.queryOne<DbTagAlias>(
+      'SELECT * FROM tag_aliases WHERE alias = ?',
+      [alias.toLowerCase().trim()]
+    );
+  }
+
+  /**
+   * Resolve a tag name: if it's an alias, return the primary tag; otherwise return as-is.
+   * This is the core function used when adding tags to files.
+   */
+  public resolveAlias(tagName: string): string {
+    const normalized = tagName.toLowerCase().trim();
+    const alias = this.getAlias(normalized);
+    return alias ? alias.primary_tag : normalized;
+  }
+
+  /**
+   * Resolve multiple tags at once, returning the resolved names
+   */
+  public resolveAliases(tagNames: string[]): string[] {
+    return tagNames.map((t) => this.resolveAlias(t));
+  }
+
+  /**
+   * Get all aliases for a specific primary tag
+   */
+  public getAliasesForTag(primaryTag: string): string[] {
+    const results = this.query<DbTagAlias>(
+      'SELECT * FROM tag_aliases WHERE primary_tag = ?',
+      [primaryTag.toLowerCase().trim()]
+    );
+    return results.map((r) => r.alias);
+  }
+
+  /**
+   * Get all aliases in the system
+   */
+  public getAllAliases(): DbTagAlias[] {
+    return this.query<DbTagAlias>('SELECT * FROM tag_aliases ORDER BY alias');
+  }
+
+  /**
+   * Delete an alias
+   */
+  public deleteAlias(alias: string): boolean {
+    const existing = this.getAlias(alias);
+    if (!existing) return false;
+
+    this.run('DELETE FROM tag_aliases WHERE alias = ?', [alias.toLowerCase().trim()]);
+    return true;
+  }
+
+  /**
+   * Update an alias to point to a different primary tag
+   */
+  public updateAlias(alias: string, newPrimaryTag: string): boolean {
+    const normalizedAlias = alias.toLowerCase().trim();
+    const normalizedPrimary = newPrimaryTag.toLowerCase().trim();
+
+    const existing = this.getAlias(normalizedAlias);
+    if (!existing) return false;
+
+    // Ensure the new primary tag exists
+    if (!this.getTag(normalizedPrimary)) {
+      this.upsertTag(normalizedPrimary, newPrimaryTag);
+    }
+
+    this.run(
+      'UPDATE tag_aliases SET primary_tag = ? WHERE alias = ?',
+      [normalizedPrimary, normalizedAlias]
+    );
+    return true;
+  }
+
+  /**
+   * Check if a tag name is an alias
+   */
+  public isAlias(tagName: string): boolean {
+    return this.getAlias(tagName) !== null;
+  }
+
+  /**
+   * Get all tags with their aliases for display
+   */
+  public getTagsWithAliases(): Array<{ tag: DbTag; aliases: string[] }> {
+    const tags = this.query<DbTag>('SELECT * FROM tags ORDER BY display_name');
+    return tags.map((tag) => ({
+      tag,
+      aliases: this.getAliasesForTag(tag.name),
+    }));
   }
 }
 

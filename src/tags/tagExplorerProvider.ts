@@ -1052,4 +1052,158 @@ export function registerTagCommands(
       }
     )
   );
+
+  // ==================== Alias Commands ====================
+
+  // Create alias for a tag
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.createAlias',
+      async (arg?: string | { type: string; tag: Tag }) => {
+        if (!tagManager.createAlias) {
+          vscode.window.showWarningMessage('Aliases are not supported in this configuration');
+          return;
+        }
+
+        let primaryTag = extractTagName(arg);
+
+        // If no tag provided, let user pick one
+        if (!primaryTag) {
+          const tags = tagManager.getAllTags();
+          if (tags.length === 0) {
+            vscode.window.showInformationMessage('No tags exist yet');
+            return;
+          }
+
+          const picked = await vscode.window.showQuickPick(
+            tags.map((t) => ({
+              label: t.displayName,
+              description: tagManager.getAliasesForTag?.(t.name)?.length
+                ? `Aliases: ${tagManager.getAliasesForTag!(t.name).join(', ')}`
+                : undefined,
+              tag: t.name,
+            })),
+            { placeHolder: 'Select tag to create alias for' }
+          );
+          if (!picked) return;
+          primaryTag = picked.tag;
+        }
+
+        const alias = await vscode.window.showInputBox({
+          prompt: `Enter alias for "${primaryTag}"`,
+          placeHolder: 'e.g., ml (will resolve to machine-learning)',
+          validateInput: (value) => {
+            if (!value.trim()) return 'Alias is required';
+            if (tagManager.isAlias?.(value)) return 'This alias already exists';
+            if (tagManager.getAllTags().some((t) => t.name === value.toLowerCase())) {
+              return 'This is already a tag name';
+            }
+            return null;
+          },
+        });
+
+        if (alias) {
+          const success = tagManager.createAlias(alias, primaryTag);
+          if (success) {
+            vscode.window.showInformationMessage(
+              `Created alias "${alias}" → "${primaryTag}"`
+            );
+          } else {
+            vscode.window.showErrorMessage('Failed to create alias');
+          }
+        }
+      }
+    )
+  );
+
+  // Manage aliases
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.manageAliases',
+      async () => {
+        if (!tagManager.getAllAliases) {
+          vscode.window.showWarningMessage('Aliases are not supported in this configuration');
+          return;
+        }
+
+        const aliases = tagManager.getAllAliases();
+
+        const items: Array<vscode.QuickPickItem & { action?: string; alias?: string; primaryTag?: string }> = [
+          { label: '$(add) Create New Alias', action: 'create' },
+        ];
+
+        if (aliases.length > 0) {
+          items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+          for (const a of aliases) {
+            items.push({
+              label: a.alias,
+              description: `→ ${a.primaryTag}`,
+              action: 'edit',
+              alias: a.alias,
+              primaryTag: a.primaryTag,
+            });
+          }
+        }
+
+        const picked = await vscode.window.showQuickPick(items, {
+          placeHolder: aliases.length === 0 
+            ? 'No aliases exist. Create one?' 
+            : 'Select alias to manage',
+        });
+
+        if (!picked || !picked.action) return;
+
+        if (picked.action === 'create') {
+          await vscode.commands.executeCommand('lattice.tags.createAlias');
+          return;
+        }
+
+        if (picked.action === 'edit' && picked.alias) {
+          const action = await vscode.window.showQuickPick(
+            [
+              { label: '$(edit) Change Primary Tag', action: 'change' },
+              { label: '$(trash) Delete Alias', action: 'delete' },
+            ],
+            { placeHolder: `Manage alias "${picked.alias}" → "${picked.primaryTag}"` }
+          );
+
+          if (!action) return;
+
+          switch (action.action) {
+            case 'change': {
+              const tags = tagManager.getAllTags();
+              const newPrimary = await vscode.window.showQuickPick(
+                tags.map((t) => ({
+                  label: t.displayName,
+                  description: t.name === picked.primaryTag ? '(current)' : undefined,
+                  tag: t.name,
+                })),
+                { placeHolder: 'Select new primary tag' }
+              );
+
+              if (newPrimary && newPrimary.tag !== picked.primaryTag) {
+                tagManager.updateAlias?.(picked.alias, newPrimary.tag);
+                vscode.window.showInformationMessage(
+                  `Updated alias "${picked.alias}" → "${newPrimary.tag}"`
+                );
+              }
+              break;
+            }
+            case 'delete': {
+              const confirm = await vscode.window.showWarningMessage(
+                `Delete alias "${picked.alias}"?`,
+                { modal: true },
+                'Delete'
+              );
+              if (confirm === 'Delete') {
+                tagManager.deleteAlias?.(picked.alias);
+                vscode.window.showInformationMessage(`Deleted alias "${picked.alias}"`);
+              }
+              break;
+            }
+          }
+        }
+      }
+    )
+  );
 }

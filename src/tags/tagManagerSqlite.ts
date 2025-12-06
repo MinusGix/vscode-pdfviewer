@@ -108,14 +108,21 @@ export class TagManagerSqlite implements vscode.Disposable {
       isNewFile = true;
     }
 
-    // Add tags - process keeping normalized and original in sync
+    // Add tags - resolve aliases and normalize
     const tagPairs = tags
-      .map((t) => ({ normalized: t.toLowerCase().trim(), original: t }))
+      .map((t) => {
+        const normalized = t.toLowerCase().trim();
+        // Resolve aliases: if this is an alias, use the primary tag instead
+        const resolved = this.db!.resolveAlias(normalized);
+        return { normalized: resolved, original: t };
+      })
       .filter((pair) => pair.normalized.length > 0);
 
     for (const { normalized: normalizedTag, original: originalTag } of tagPairs) {
-      // Ensure tag exists
+      // Ensure tag exists (use original as display name only if creating new tag)
       if (!this.db.getTag(normalizedTag)) {
+        // If this was resolved from an alias, the tag might already exist
+        // Use the resolved name as display name
         this.db.upsertTag(normalizedTag, originalTag);
       }
 
@@ -885,6 +892,67 @@ export class TagManagerSqlite implements vscode.Disposable {
     }
 
     return { success, failed };
+  }
+
+  // ================== Alias Operations ==================
+
+  /**
+   * Create a tag alias (synonym that resolves to a primary tag)
+   */
+  public createAlias(alias: string, primaryTag: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    return this.db.createAlias(alias, primaryTag);
+  }
+
+  /**
+   * Get all aliases for a tag
+   */
+  public getAliasesForTag(tagName: string): string[] {
+    if (!this.db) return [];
+    return this.db.getAliasesForTag(tagName);
+  }
+
+  /**
+   * Get all aliases in the system
+   */
+  public getAllAliases(): Array<{ alias: string; primaryTag: string }> {
+    if (!this.db) return [];
+    return this.db.getAllAliases().map((a) => ({
+      alias: a.alias,
+      primaryTag: a.primary_tag,
+    }));
+  }
+
+  /**
+   * Delete an alias
+   */
+  public deleteAlias(alias: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    return this.db.deleteAlias(alias);
+  }
+
+  /**
+   * Update an alias to point to a different primary tag
+   */
+  public updateAlias(alias: string, newPrimaryTag: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    return this.db.updateAlias(alias, newPrimaryTag);
+  }
+
+  /**
+   * Check if a tag name is an alias
+   */
+  public isAlias(tagName: string): boolean {
+    if (!this.db) return false;
+    return this.db.isAlias(tagName);
+  }
+
+  /**
+   * Resolve a tag name (if alias, return primary tag; otherwise return as-is)
+   */
+  public resolveAlias(tagName: string): string {
+    if (!this.db) return tagName.toLowerCase().trim();
+    return this.db.resolveAlias(tagName);
   }
 
   // ================== Lifecycle ==================

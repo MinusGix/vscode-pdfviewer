@@ -75,6 +75,15 @@ export interface ITagManager extends vscode.Disposable {
     uris: vscode.Uri[],
     templateId: string
   ): Promise<{ success: number; failed: number }>;
+
+  // Alias operations (optional - only SQLite backend supports these)
+  createAlias?(alias: string, primaryTag: string): boolean;
+  getAliasesForTag?(tagName: string): string[];
+  getAllAliases?(): Array<{ alias: string; primaryTag: string }>;
+  deleteAlias?(alias: string): boolean;
+  updateAlias?(alias: string, newPrimaryTag: string): boolean;
+  isAlias?(tagName: string): boolean;
+  resolveAlias?(tagName: string): string;
 }
 
 /**
