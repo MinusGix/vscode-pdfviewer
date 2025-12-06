@@ -222,6 +222,18 @@ export interface TagWithCount extends DbTag {
 }
 
 /**
+ * Tag hierarchy node for tree display
+ */
+export interface TagHierarchyNode {
+  tag: DbTag;
+  children: TagHierarchyNode[];
+  /** Files directly tagged with this tag */
+  fileCount: number;
+  /** Files tagged with this tag or any descendant */
+  totalFileCount: number;
+}
+
+/**
  * Migration source data (from JSON files)
  */
 export interface MigrationSource {

@@ -24,6 +24,7 @@ import {
   TagInstanceWithMetadata,
   FileWithTags,
   TagWithCount,
+  TagHierarchyNode,
   TagTemplate,
   TagExpression,
   MigrationSource,
@@ -1238,6 +1239,208 @@ export class LatticeDatabase {
       tag,
       aliases: this.getAliasesForTag(tag.name),
     }));
+  }
+
+  // ============================================================
+  // TAG HIERARCHY OPERATIONS
+  // ============================================================
+
+  /**
+   * Set the parent of a tag (creates hierarchy).
+   * Use `::` separator in display: "Programming::Python::Django"
+   */
+  public setTagParent(childTag: string, parentTag: string | null): boolean {
+    const normalizedChild = childTag.toLowerCase().trim();
+    const normalizedParent = parentTag?.toLowerCase().trim() ?? null;
+
+    // Check child exists
+    if (!this.getTag(normalizedChild)) {
+      return false;
+    }
+
+    // Check parent exists (if provided)
+    if (normalizedParent && !this.getTag(normalizedParent)) {
+      return false;
+    }
+
+    // Prevent circular references
+    if (normalizedParent) {
+      const ancestors = this.getTagAncestors(normalizedParent);
+      if (ancestors.includes(normalizedChild)) {
+        return false; // Would create a cycle
+      }
+    }
+
+    this.run('UPDATE tags SET parent_tag = ? WHERE name = ?', [
+      normalizedParent,
+      normalizedChild,
+    ]);
+    return true;
+  }
+
+  /**
+   * Get the parent tag of a tag (if any)
+   */
+  public getTagParent(tagName: string): string | null {
+    const tag = this.getTag(tagName);
+    return tag?.parent_tag ?? null;
+  }
+
+  /**
+   * Get direct children of a tag
+   */
+  public getTagChildren(parentTag: string): DbTag[] {
+    return this.query<DbTag>(
+      'SELECT * FROM tags WHERE parent_tag = ? ORDER BY display_name',
+      [parentTag.toLowerCase().trim()]
+    );
+  }
+
+  /**
+   * Get all ancestors of a tag (parent, grandparent, etc.)
+   * Returns array from immediate parent to root.
+   */
+  public getTagAncestors(tagName: string): string[] {
+    const ancestors: string[] = [];
+    let current = this.getTag(tagName);
+    const visited = new Set<string>(); // Prevent infinite loops
+
+    while (current?.parent_tag && !visited.has(current.parent_tag)) {
+      visited.add(current.parent_tag);
+      ancestors.push(current.parent_tag);
+      current = this.getTag(current.parent_tag);
+    }
+
+    return ancestors;
+  }
+
+  /**
+   * Get all descendants of a tag (children, grandchildren, etc.)
+   * Returns flat array of all descendant tag names.
+   */
+  public getTagDescendants(parentTag: string): string[] {
+    const descendants: string[] = [];
+    const queue = [parentTag.toLowerCase().trim()];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      const children = this.getTagChildren(current);
+      for (const child of children) {
+        descendants.push(child.name);
+        queue.push(child.name);
+      }
+    }
+
+    return descendants;
+  }
+
+  /**
+   * Get the full hierarchy path for a tag (from root to this tag)
+   * Returns array like ["programming", "python", "django"]
+   */
+  public getTagPath(tagName: string): string[] {
+    const ancestors = this.getTagAncestors(tagName);
+    return [...ancestors.reverse(), tagName.toLowerCase().trim()];
+  }
+
+  /**
+   * Get display path for a tag (using `::` separator)
+   * Returns "Programming::Python::Django" format
+   */
+  public getTagDisplayPath(tagName: string): string {
+    const path = this.getTagPath(tagName);
+    const displayNames = path.map((t) => {
+      const tag = this.getTag(t);
+      return tag?.display_name ?? t;
+    });
+    return displayNames.join('::');
+  }
+
+  /**
+   * Get root tags (tags with no parent)
+   */
+  public getRootTags(): DbTag[] {
+    return this.query<DbTag>(
+      'SELECT * FROM tags WHERE parent_tag IS NULL ORDER BY display_name'
+    );
+  }
+
+  /**
+   * Get files with a tag OR any of its descendants
+   */
+  public getFilesWithTagOrDescendants(tagName: string): DbFile[] {
+    const normalized = tagName.toLowerCase().trim();
+    const descendants = this.getTagDescendants(normalized);
+    const allTags = [normalized, ...descendants];
+
+    if (allTags.length === 0) {
+      return [];
+    }
+
+    // Build query with placeholders
+    const placeholders = allTags.map(() => '?').join(', ');
+    return this.query<DbFile>(
+      `SELECT DISTINCT f.*
+       FROM files f
+       JOIN tag_instances ti ON f.id = ti.file_id
+       WHERE ti.tag_name IN (${placeholders})
+       ORDER BY f.path`,
+      allTags
+    );
+  }
+
+  /**
+   * Get the tag hierarchy as a tree structure
+   */
+  public getTagHierarchy(): TagHierarchyNode[] {
+    const rootTags = this.getRootTags();
+    return rootTags.map((tag) => this.buildHierarchyNode(tag));
+  }
+
+  /**
+   * Build a hierarchy node recursively
+   */
+  private buildHierarchyNode(tag: DbTag): TagHierarchyNode {
+    const children = this.getTagChildren(tag.name);
+    return {
+      tag,
+      children: children.map((child) => this.buildHierarchyNode(child)),
+      fileCount: this.getTagFileCount(tag.name),
+      totalFileCount: this.getTagTotalFileCount(tag.name),
+    };
+  }
+
+  /**
+   * Get file count for a specific tag (not including descendants)
+   */
+  private getTagFileCount(tagName: string): number {
+    const result = this.queryOne<{ count: number }>(
+      'SELECT COUNT(DISTINCT file_id) as count FROM tag_instances WHERE tag_name = ?',
+      [tagName.toLowerCase().trim()]
+    );
+    return result?.count ?? 0;
+  }
+
+  /**
+   * Get total file count for a tag including all descendants
+   */
+  private getTagTotalFileCount(tagName: string): number {
+    const normalized = tagName.toLowerCase().trim();
+    const descendants = this.getTagDescendants(normalized);
+    const allTags = [normalized, ...descendants];
+
+    if (allTags.length === 0) return 0;
+
+    const placeholders = allTags.map(() => '?').join(', ');
+    const result = this.queryOne<{ count: number }>(
+      `SELECT COUNT(DISTINCT file_id) as count FROM tag_instances WHERE tag_name IN (${placeholders})`,
+      allTags
+    );
+    return result?.count ?? 0;
   }
 }
 

@@ -247,6 +247,21 @@
         "command": "lattice.tags.manageAliases",
         "title": "Manage Tag Aliases",
         "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.setParent",
+        "title": "Set Tag Parent (Hierarchy)",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.showHierarchy",
+        "title": "Show Tag Hierarchy",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.browseWithDescendants",
+        "title": "Browse Tag with Descendants",
+        "category": "Lattice Tags"
       }
     ],
     "grammars": [

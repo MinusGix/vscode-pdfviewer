@@ -84,6 +84,18 @@ export interface ITagManager extends vscode.Disposable {
   updateAlias?(alias: string, newPrimaryTag: string): boolean;
   isAlias?(tagName: string): boolean;
   resolveAlias?(tagName: string): string;
+
+  // Hierarchy operations (optional - only SQLite backend supports these)
+  setTagParent?(childTag: string, parentTag: string | null): boolean;
+  getTagParent?(tagName: string): string | null;
+  getTagChildren?(parentTag: string): string[];
+  getTagAncestors?(tagName: string): string[];
+  getTagDescendants?(tagName: string): string[];
+  getTagPath?(tagName: string): string[];
+  getTagDisplayPath?(tagName: string): string;
+  getRootTags?(): string[];
+  getFilesWithTagOrDescendants?(tagName: string): TaggedFile[];
+  getTagHierarchy?(): import('../database').TagHierarchyNode[];
 }
 
 /**

@@ -955,6 +955,93 @@ export class TagManagerSqlite implements vscode.Disposable {
     return this.db.resolveAlias(tagName);
   }
 
+  // ================== Hierarchy Operations ==================
+
+  /**
+   * Set the parent of a tag (creates hierarchy)
+   */
+  public setTagParent(childTag: string, parentTag: string | null): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.setTagParent(childTag, parentTag);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Get the parent tag of a tag
+   */
+  public getTagParent(tagName: string): string | null {
+    if (!this.db) return null;
+    return this.db.getTagParent(tagName);
+  }
+
+  /**
+   * Get direct children of a tag
+   */
+  public getTagChildren(parentTag: string): string[] {
+    if (!this.db) return [];
+    return this.db.getTagChildren(parentTag).map((t) => t.name);
+  }
+
+  /**
+   * Get all ancestors of a tag (parent, grandparent, etc.)
+   */
+  public getTagAncestors(tagName: string): string[] {
+    if (!this.db) return [];
+    return this.db.getTagAncestors(tagName);
+  }
+
+  /**
+   * Get all descendants of a tag (children, grandchildren, etc.)
+   */
+  public getTagDescendants(tagName: string): string[] {
+    if (!this.db) return [];
+    return this.db.getTagDescendants(tagName);
+  }
+
+  /**
+   * Get the full hierarchy path for a tag
+   */
+  public getTagPath(tagName: string): string[] {
+    if (!this.db) return [tagName.toLowerCase().trim()];
+    return this.db.getTagPath(tagName);
+  }
+
+  /**
+   * Get display path for a tag (e.g., "Programming::Python::Django")
+   */
+  public getTagDisplayPath(tagName: string): string {
+    if (!this.db) return tagName;
+    return this.db.getTagDisplayPath(tagName);
+  }
+
+  /**
+   * Get root tags (tags with no parent)
+   */
+  public getRootTags(): string[] {
+    if (!this.db) return [];
+    return this.db.getRootTags().map((t) => t.name);
+  }
+
+  /**
+   * Get files with a tag OR any of its descendants
+   */
+  public getFilesWithTagOrDescendants(tagName: string): TaggedFile[] {
+    if (!this.db) return [];
+    const files = this.db.getFilesWithTagOrDescendants(tagName);
+    return files.map((f) => this.dbFileToTaggedFile(f));
+  }
+
+  /**
+   * Get the tag hierarchy as a tree structure
+   */
+  public getTagHierarchy(): import('../database').TagHierarchyNode[] {
+    if (!this.db) return [];
+    return this.db.getTagHierarchy();
+  }
+
   // ================== Lifecycle ==================
 
   public dispose(): void {

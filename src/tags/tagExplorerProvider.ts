@@ -1206,4 +1206,208 @@ export function registerTagCommands(
       }
     )
   );
+
+  // ==================== Hierarchy Commands ====================
+
+  // Set tag parent (create hierarchy)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.setParent',
+      async (arg?: string | { type: string; tag: Tag }) => {
+        if (!tagManager.setTagParent) {
+          vscode.window.showWarningMessage('Tag hierarchy is not supported in this configuration');
+          return;
+        }
+
+        let childTag = extractTagName(arg);
+
+        // If no tag provided, let user pick one
+        if (!childTag) {
+          const tags = tagManager.getAllTags();
+          if (tags.length === 0) {
+            vscode.window.showInformationMessage('No tags exist yet');
+            return;
+          }
+
+          const picked = await vscode.window.showQuickPick(
+            tags.map((t) => {
+              const parent = tagManager.getTagParent?.(t.name);
+              return {
+                label: t.displayName,
+                description: parent ? `Parent: ${parent}` : 'No parent',
+                tag: t.name,
+              };
+            }),
+            { placeHolder: 'Select tag to set parent for' }
+          );
+          if (!picked) return;
+          childTag = picked.tag;
+        }
+
+        const currentParent = tagManager.getTagParent?.(childTag);
+        const tags = tagManager.getAllTags().filter((t) => t.name !== childTag);
+
+        const items: Array<vscode.QuickPickItem & { tag?: string | null }> = [
+          { label: '$(close) No Parent (Root Level)', tag: null },
+          { label: '', kind: vscode.QuickPickItemKind.Separator },
+          ...tags.map((t) => {
+            // Check for potential cycle
+            const descendants = tagManager.getTagDescendants?.(childTag!) ?? [];
+            const wouldCycle = descendants.includes(t.name);
+            return {
+              label: t.displayName,
+              description: t.name === currentParent
+                ? '(current parent)'
+                : wouldCycle
+                  ? '(would create cycle)'
+                  : tagManager.getTagDisplayPath?.(t.name),
+              tag: t.name,
+              disabled: wouldCycle,
+            };
+          }).filter((item) => !item.disabled),
+        ];
+
+        const picked = await vscode.window.showQuickPick(items, {
+          placeHolder: `Select parent for "${childTag}"`,
+        });
+
+        if (picked !== undefined && picked.tag !== undefined) {
+          const success = tagManager.setTagParent(childTag, picked.tag);
+          if (success) {
+            if (picked.tag) {
+              vscode.window.showInformationMessage(
+                `Set "${childTag}" as child of "${picked.tag}"`
+              );
+            } else {
+              vscode.window.showInformationMessage(
+                `Moved "${childTag}" to root level`
+              );
+            }
+          } else {
+            vscode.window.showErrorMessage('Failed to set parent');
+          }
+        }
+      }
+    )
+  );
+
+  // Show tag hierarchy path
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.showHierarchy',
+      async (arg?: string | { type: string; tag: Tag }) => {
+        if (!tagManager.getTagDisplayPath) {
+          vscode.window.showWarningMessage('Tag hierarchy is not supported in this configuration');
+          return;
+        }
+
+        let tagName = extractTagName(arg);
+
+        if (!tagName) {
+          const tags = tagManager.getAllTags();
+          if (tags.length === 0) {
+            vscode.window.showInformationMessage('No tags exist yet');
+            return;
+          }
+
+          const picked = await vscode.window.showQuickPick(
+            tags.map((t) => ({
+              label: t.displayName,
+              description: tagManager.getTagDisplayPath?.(t.name),
+              tag: t.name,
+            })),
+            { placeHolder: 'Select tag to see hierarchy' }
+          );
+          if (!picked) return;
+          tagName = picked.tag;
+        }
+
+        const displayPath = tagManager.getTagDisplayPath(tagName);
+        const ancestors = tagManager.getTagAncestors?.(tagName) ?? [];
+        const children = tagManager.getTagChildren?.(tagName) ?? [];
+        const descendants = tagManager.getTagDescendants?.(tagName) ?? [];
+
+        const lines = [
+          `**${displayPath}**`,
+          '',
+          `Path depth: ${ancestors.length + 1}`,
+          `Direct children: ${children.length}`,
+          `Total descendants: ${descendants.length}`,
+        ];
+
+        if (ancestors.length > 0) {
+          lines.push('', `Ancestors: ${ancestors.join(' → ')}`);
+        }
+        if (children.length > 0) {
+          lines.push('', `Children: ${children.join(', ')}`);
+        }
+
+        vscode.window.showInformationMessage(lines.join('\n'));
+      }
+    )
+  );
+
+  // Browse with hierarchy (show files under tag and descendants)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.browseWithDescendants',
+      async (arg?: string | { type: string; tag: Tag }) => {
+        if (!tagManager.getFilesWithTagOrDescendants) {
+          vscode.window.showWarningMessage('Tag hierarchy is not supported in this configuration');
+          return;
+        }
+
+        let tagName = extractTagName(arg);
+
+        if (!tagName) {
+          const tags = tagManager.getAllTags();
+          if (tags.length === 0) {
+            vscode.window.showInformationMessage('No tags exist yet');
+            return;
+          }
+
+          const picked = await vscode.window.showQuickPick(
+            tags.map((t) => {
+              const descendants = tagManager.getTagDescendants?.(t.name) ?? [];
+              return {
+                label: t.displayName,
+                description: descendants.length > 0
+                  ? `${descendants.length} descendant tags`
+                  : 'No descendants',
+                tag: t.name,
+              };
+            }),
+            { placeHolder: 'Select tag to browse (including descendants)' }
+          );
+          if (!picked) return;
+          tagName = picked.tag;
+        }
+
+        const files = tagManager.getFilesWithTagOrDescendants(tagName);
+        const descendants = tagManager.getTagDescendants?.(tagName) ?? [];
+
+        if (files.length === 0) {
+          vscode.window.showInformationMessage(
+            `No files found with "${tagName}" or its descendants`
+          );
+          return;
+        }
+
+        const items = files.map((f) => ({
+          label: f.filename,
+          description: f.path,
+          detail: `Tags: ${f.tags.join(', ')}`,
+          uri: getUriFromRelativePath(f.path),
+        }));
+
+        const picked = await vscode.window.showQuickPick(items, {
+          placeHolder: `Files with "${tagName}"${descendants.length > 0 ? ` or descendants (${files.length} files)` : ''}`,
+        });
+
+        if (picked?.uri) {
+          await vscode.commands.executeCommand('vscode.open', picked.uri);
+        }
+      }
+    )
+  );
 }
