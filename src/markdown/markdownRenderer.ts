@@ -79,17 +79,24 @@ function rehypeSourcepos() {
     };
 }
 
-// Remark plugin to build detailed character mapping from AST
+// Remark plugin to build character mapping from AST
 function remarkCharacterMap() {
     return (tree: any, file: any) => {
+        const markdown = file.value || String(file);
         const characterMap: CharacterMapping[] = [];
+
+        // Initialize all characters as syntax by default
+        for (let i = 0; i < markdown.length; i++) {
+            characterMap.push({
+                sourceOffset: i,
+                renderOffset: -1,
+                inSyntax: true
+            });
+        }
+
         let renderOffset = 0;
 
-        // Store the map in the file data for later retrieval
-        file.data = file.data || {};
-        file.data.characterMap = characterMap;
-
-        // Walk the AST and build character-by-character mapping
+        // Walk the AST and mark content characters
         visit(tree, (node: any) => {
             if (!node.position) {
                 return;
@@ -98,45 +105,73 @@ function remarkCharacterMap() {
             const start = node.position.start.offset;
             const end = node.position.end.offset;
 
-            // For text nodes, map each character
+            // Text nodes are always rendered content
             if (node.type === 'text' && node.value) {
                 for (let i = 0; i < node.value.length; i++) {
-                    characterMap.push({
-                        sourceOffset: start + i,
-                        renderOffset: renderOffset,
-                        inSyntax: false
-                    });
-                    renderOffset++;
+                    const offset = start + i;
+                    if (offset < characterMap.length) {
+                        characterMap[offset] = {
+                            sourceOffset: offset,
+                            renderOffset: renderOffset,
+                            inSyntax: false
+                        };
+                        renderOffset++;
+                    }
                 }
             }
-
-            // For inline code, the backticks are syntax
-            if (node.type === 'inlineCode' && node.value) {
-                // First backtick (or triple backtick)
-                characterMap.push({
-                    sourceOffset: start,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-
-                // The actual code content
-                for (let i = 0; i < node.value.length; i++) {
-                    characterMap.push({
-                        sourceOffset: start + 1 + i,
-                        renderOffset: renderOffset,
-                        inSyntax: false
-                    });
-                    renderOffset++;
+            // Inline code: the value is rendered, backticks are not
+            else if (node.type === 'inlineCode' && node.value) {
+                // Find where the actual code starts (after opening backticks)
+                let codeStart = start;
+                while (codeStart < end && markdown[codeStart] === '`') {
+                    codeStart++;
                 }
 
-                // Closing backtick
-                characterMap.push({
-                    sourceOffset: end - 1,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
+                // Mark the code content as rendered
+                for (let i = 0; i < node.value.length; i++) {
+                    const offset = codeStart + i;
+                    if (offset < characterMap.length) {
+                        characterMap[offset] = {
+                            sourceOffset: offset,
+                            renderOffset: renderOffset,
+                            inSyntax: false
+                        };
+                        renderOffset++;
+                    }
+                }
+            }
+            // Break nodes (hard line breaks) are rendered as newlines
+            else if (node.type === 'break') {
+                // Line breaks from \\ or two spaces + newline are rendered
+                if (start < characterMap.length) {
+                    characterMap[start] = {
+                        sourceOffset: start,
+                        renderOffset: renderOffset,
+                        inSyntax: false
+                    };
+                    renderOffset++;
+                }
             }
         });
+
+        // For syntax characters, set renderOffset to the next content position
+        for (let i = 0; i < characterMap.length; i++) {
+            if (characterMap[i].inSyntax && characterMap[i].renderOffset === -1) {
+                // Find the next non-syntax character's renderOffset
+                let nextRenderOffset = renderOffset;
+                for (let j = i + 1; j < characterMap.length; j++) {
+                    if (!characterMap[j].inSyntax) {
+                        nextRenderOffset = characterMap[j].renderOffset;
+                        break;
+                    }
+                }
+                characterMap[i].renderOffset = nextRenderOffset;
+            }
+        }
+
+        // Store in file data for retrieval after processing
+        file.data = file.data || {};
+        file.data.characterMap = characterMap;
 
         return tree;
     };
@@ -174,6 +209,7 @@ export class MarkdownRenderer {
                     .use(remarkParse, { position: true })   // mdast nodes carry byte offsets
                     .use(remarkGfm)
                     .use(remarkMath)
+                    .use(remarkCharacterMap)                // build character mapping from AST
                     .use(remarkRehype, { allowDangerousHtml: true, passThrough: [] })
                     .use(rehypeKatex)                       // swap for rehype-mathjax if you prefer
                     .use(rehypeSourcepos)                   // attach data-sourcepos
@@ -183,8 +219,8 @@ export class MarkdownRenderer {
             const file = await this.processor.process(markdown);
             const html = String(file);
 
-            // Build character-level mapping
-            const characterMap = this.buildCharacterMapping(markdown, html);
+            // Retrieve character mapping from file data (set by remarkCharacterMap plugin)
+            const characterMap = file.data?.characterMap || [];
 
             return { html, characterMap };
         } catch (error) {
@@ -280,224 +316,5 @@ export class MarkdownRenderer {
             line: lines.length - 1,
             character: lines[lines.length - 1].length
         };
-    }
-
-    /**
-     * Build detailed character-level mapping between source markdown and rendered text.
-     * This creates a more accurate mapping by analyzing markdown patterns.
-     */
-    private buildCharacterMapping(markdown: string, html: string): CharacterMapping[] {
-        const mapping: CharacterMapping[] = [];
-        let renderOffset = 0;
-
-        // State tracking for markdown syntax detection
-        let i = 0;
-        while (i < markdown.length) {
-            const char = markdown[i];
-            let isSyntax = false;
-            let advance = 1; // How many characters to advance
-
-            // Detect various markdown syntax patterns
-
-            // Heading markers: # at start of line
-            if (char === '#' && this.isStartOfLine(markdown, i)) {
-                // Count consecutive #
-                let hashCount = 0;
-                let j = i;
-                while (j < markdown.length && markdown[j] === '#') {
-                    hashCount++;
-                    j++;
-                }
-                // Skip the # characters and any following space
-                while (j < markdown.length && markdown[j] === ' ') {
-                    j++;
-                }
-                // Mark all these characters as syntax
-                for (let k = i; k < j; k++) {
-                    mapping.push({
-                        sourceOffset: k,
-                        renderOffset: renderOffset,
-                        inSyntax: true
-                    });
-                }
-                i = j;
-                continue;
-            }
-
-            // Bold: ** or __
-            if ((char === '*' && markdown[i + 1] === '*') ||
-                (char === '_' && markdown[i + 1] === '_')) {
-                mapping.push({
-                    sourceOffset: i,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-                mapping.push({
-                    sourceOffset: i + 1,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-                i += 2;
-                continue;
-            }
-
-            // Italic: * or _
-            if (char === '*' || char === '_') {
-                mapping.push({
-                    sourceOffset: i,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-                i++;
-                continue;
-            }
-
-            // Inline code: `
-            if (char === '`') {
-                // Count consecutive backticks
-                let backtickCount = 0;
-                let j = i;
-                while (j < markdown.length && markdown[j] === '`') {
-                    backtickCount++;
-                    j++;
-                }
-                // Mark opening backticks as syntax
-                for (let k = i; k < j; k++) {
-                    mapping.push({
-                        sourceOffset: k,
-                        renderOffset: renderOffset,
-                        inSyntax: true
-                    });
-                }
-                i = j;
-                continue;
-            }
-
-            // Links: [text](url) - need to handle the complete pattern
-            if (char === '[') {
-                // Mark opening bracket as syntax
-                mapping.push({
-                    sourceOffset: i,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-
-                // Find the closing bracket
-                let j = i + 1;
-                let linkTextStart = j;
-                while (j < markdown.length && markdown[j] !== ']') {
-                    // Link text is actual content
-                    mapping.push({
-                        sourceOffset: j,
-                        renderOffset: renderOffset,
-                        inSyntax: false
-                    });
-                    renderOffset++;
-                    j++;
-                }
-
-                if (j < markdown.length && markdown[j] === ']') {
-                    // Mark closing bracket as syntax
-                    mapping.push({
-                        sourceOffset: j,
-                        renderOffset: renderOffset,
-                        inSyntax: true
-                    });
-                    j++;
-
-                    // Check if followed by ( for URL
-                    if (j < markdown.length && markdown[j] === '(') {
-                        // Mark ( and everything until ) as syntax
-                        while (j < markdown.length && markdown[j] !== ')') {
-                            mapping.push({
-                                sourceOffset: j,
-                                renderOffset: renderOffset,
-                                inSyntax: true
-                            });
-                            j++;
-                        }
-                        if (j < markdown.length && markdown[j] === ')') {
-                            mapping.push({
-                                sourceOffset: j,
-                                renderOffset: renderOffset,
-                                inSyntax: true
-                            });
-                            j++;
-                        }
-                    }
-
-                    i = j;
-                    continue;
-                }
-            }
-
-            // List markers: - or + or * at start of line followed by space
-            if ((char === '-' || char === '+' || char === '*') &&
-                this.isStartOfLine(markdown, i) &&
-                i + 1 < markdown.length && markdown[i + 1] === ' ') {
-                mapping.push({
-                    sourceOffset: i,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-                mapping.push({
-                    sourceOffset: i + 1,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-                i += 2;
-                continue;
-            }
-
-            // Blockquote: > at start of line
-            if (char === '>' && this.isStartOfLine(markdown, i)) {
-                mapping.push({
-                    sourceOffset: i,
-                    renderOffset: renderOffset,
-                    inSyntax: true
-                });
-                // Skip following space if any
-                if (i + 1 < markdown.length && markdown[i + 1] === ' ') {
-                    mapping.push({
-                        sourceOffset: i + 1,
-                        renderOffset: renderOffset,
-                        inSyntax: true
-                    });
-                    i += 2;
-                } else {
-                    i++;
-                }
-                continue;
-            }
-
-            // Regular content character
-            mapping.push({
-                sourceOffset: i,
-                renderOffset: renderOffset,
-                inSyntax: false
-            });
-            renderOffset++;
-            i++;
-        }
-
-        return mapping;
-    }
-
-    /**
-     * Check if a position is at the start of a line (after newline or at beginning)
-     */
-    private isStartOfLine(text: string, offset: number): boolean {
-        if (offset === 0) {
-            return true;
-        }
-        // Look backward to see if we're at the start of a line
-        let i = offset - 1;
-        while (i >= 0 && text[i] !== '\n') {
-            if (text[i] !== ' ' && text[i] !== '\t') {
-                return false; // Non-whitespace before this position
-            }
-            i--;
-        }
-        return true; // Only whitespace or newline before this position
     }
 }

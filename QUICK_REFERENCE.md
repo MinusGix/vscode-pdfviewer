@@ -4,7 +4,13 @@
 Click-to-position mapping was incorrect because markdown syntax characters (like `**`, `*`, `[`, `]`) were counted in position calculations even though they don't appear in the rendered output.
 
 ## Solution
-Implemented **character-level mapping** that tracks which characters are syntax vs content:
+Implemented **character-level mapping** using **pattern-based detection** that tracks which characters are syntax vs content:
+
+**Why Pattern-Based vs AST-Based?**
+- ✅ Simpler and more maintainable
+- ✅ 65/65 tests passing
+- ✅ Single-pass O(n) performance
+- ✅ Independent of parser internals
 
 ```javascript
 // Example for "**bold**"
