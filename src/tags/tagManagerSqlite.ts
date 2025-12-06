@@ -1323,6 +1323,220 @@ export class TagManagerSqlite implements vscode.Disposable {
     return autoTags;
   }
 
+  // ================== Batch Operations ==================
+
+  /**
+   * Add tags to multiple files at once
+   */
+  public async addTagsToFiles(
+    uris: vscode.Uri[],
+    tags: string[]
+  ): Promise<{ filesAffected: number; tagsAdded: number }> {
+    if (!this.db) throw new Error('TagManager not initialized');
+
+    const fileIds: string[] = [];
+    for (const uri of uris) {
+      const relativePath = getRelativePath(uri);
+      if (!relativePath) continue;
+
+      let fileId = this.pathToIdCache.get(relativePath);
+      if (!fileId) {
+        // Check if file exists in DB
+        let file = this.db.getFileByPath(relativePath);
+        if (!file) {
+          // Create file entry if it doesn't exist
+          const metadata = await getFileMetadata(uri);
+          const newId = nanoid();
+          this.db.upsertFile({
+            id: newId,
+            path: relativePath,
+            filename: path.basename(uri.fsPath),
+            file_size: metadata.fileSize ?? null,
+            last_modified: metadata.lastModified ?? null,
+            content_signature: metadata.contentSignature ?? null,
+            last_seen: Date.now(),
+            status: 'ok',
+          });
+          fileId = newId;
+        } else {
+          fileId = file.id;
+        }
+        this.pathToIdCache.set(relativePath, fileId);
+      }
+      if (fileId) {
+        fileIds.push(fileId);
+      }
+    }
+
+    // Resolve aliases
+    const resolvedTags = tags.map((t) => this.db!.resolveAlias(t));
+    const result = this.db.addTagsToFiles(fileIds, resolvedTags);
+
+    if (result.tagsAdded > 0) {
+      this._onDidChangeTags.fire({ type: 'add', tags: resolvedTags });
+    }
+
+    return result;
+  }
+
+  /**
+   * Remove tags from multiple files at once
+   */
+  public removeTagsFromFiles(
+    uris: vscode.Uri[],
+    tags: string[]
+  ): { filesAffected: number; tagsRemoved: number } {
+    if (!this.db) throw new Error('TagManager not initialized');
+
+    const fileIds: string[] = [];
+    for (const uri of uris) {
+      const relativePath = getRelativePath(uri);
+      if (!relativePath) continue;
+
+      const fileId = this.pathToIdCache.get(relativePath);
+      if (fileId) {
+        fileIds.push(fileId);
+      }
+    }
+
+    // Resolve aliases
+    const resolvedTags = tags.map((t) => this.db!.resolveAlias(t));
+    const result = this.db.removeTagsFromFiles(fileIds, resolvedTags);
+
+    if (result.tagsRemoved > 0) {
+      this._onDidChangeTags.fire({ type: 'remove', tags: resolvedTags });
+    }
+
+    return result;
+  }
+
+  /**
+   * Set exact tags for multiple files (replace existing tags)
+   */
+  public setTagsForFiles(
+    uris: vscode.Uri[],
+    tags: string[]
+  ): { filesAffected: number } {
+    if (!this.db) throw new Error('TagManager not initialized');
+
+    const fileIds: string[] = [];
+    for (const uri of uris) {
+      const relativePath = getRelativePath(uri);
+      if (!relativePath) continue;
+
+      const fileId = this.pathToIdCache.get(relativePath);
+      if (fileId) {
+        fileIds.push(fileId);
+      }
+    }
+
+    // Resolve aliases
+    const resolvedTags = tags.map((t) => this.db!.resolveAlias(t));
+    const result = this.db.setTagsForFiles(fileIds, resolvedTags);
+
+    if (result.filesAffected > 0) {
+      this._onDidChangeTags.fire({ type: 'update', tags: resolvedTags });
+    }
+
+    return result;
+  }
+
+  /**
+   * Get files that have ALL of the specified tags
+   */
+  public getFilesWithAllTags(tags: string[]): TaggedFile[] {
+    if (!this.db) return [];
+    const resolvedTags = tags.map((t) => this.db!.resolveAlias(t));
+    const files = this.db.getFilesWithAllTags(resolvedTags);
+    return files.map((f) => this.dbFileToTaggedFile(f));
+  }
+
+  /**
+   * Get files that have ANY of the specified tags
+   */
+  public getFilesWithAnyTags(tags: string[]): TaggedFile[] {
+    if (!this.db) return [];
+    const resolvedTags = tags.map((t) => this.db!.resolveAlias(t));
+    const files = this.db.getFilesWithAnyTags(resolvedTags);
+    return files.map((f) => this.dbFileToTaggedFile(f));
+  }
+
+  /**
+   * Get files that have NONE of the specified tags
+   */
+  public getFilesWithoutTags(tags: string[]): TaggedFile[] {
+    if (!this.db) return [];
+    const resolvedTags = tags.map((t) => this.db!.resolveAlias(t));
+    const files = this.db.getFilesWithoutTags(resolvedTags);
+    return files.map((f) => this.dbFileToTaggedFile(f));
+  }
+
+  /**
+   * Get files with no tags
+   */
+  public getUntaggedFiles(): TaggedFile[] {
+    if (!this.db) return [];
+    const files = this.db.getUntaggedFiles();
+    return files.map((f) => this.dbFileToTaggedFile(f));
+  }
+
+  /**
+   * Get common tags shared by all specified files
+   */
+  public getCommonTags(uris: vscode.Uri[]): string[] {
+    if (!this.db) return [];
+
+    const fileIds: string[] = [];
+    for (const uri of uris) {
+      const relativePath = getRelativePath(uri);
+      if (!relativePath) continue;
+      const fileId = this.pathToIdCache.get(relativePath);
+      if (fileId) {
+        fileIds.push(fileId);
+      }
+    }
+
+    return this.db.getCommonTags(fileIds);
+  }
+
+  /**
+   * Get all unique tags across specified files
+   */
+  public getAllTagsForFiles(uris: vscode.Uri[]): string[] {
+    if (!this.db) return [];
+
+    const fileIds: string[] = [];
+    for (const uri of uris) {
+      const relativePath = getRelativePath(uri);
+      if (!relativePath) continue;
+      const fileId = this.pathToIdCache.get(relativePath);
+      if (fileId) {
+        fileIds.push(fileId);
+      }
+    }
+
+    return this.db.getAllTagsForFiles(fileIds);
+  }
+
+  /**
+   * Get tag counts for specified files
+   */
+  public getTagCountsForFiles(uris: vscode.Uri[]): Array<{ tagName: string; count: number }> {
+    if (!this.db) return [];
+
+    const fileIds: string[] = [];
+    for (const uri of uris) {
+      const relativePath = getRelativePath(uri);
+      if (!relativePath) continue;
+      const fileId = this.pathToIdCache.get(relativePath);
+      if (fileId) {
+        fileIds.push(fileId);
+      }
+    }
+
+    return this.db.getTagCountsForFiles(fileIds);
+  }
+
   // ================== Lifecycle ==================
 
   public dispose(): void {

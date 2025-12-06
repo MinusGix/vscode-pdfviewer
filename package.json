@@ -297,6 +297,26 @@
         "command": "lattice.tags.applyAutoTags",
         "title": "Apply Auto-Tags to Current File",
         "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.addTagsToSelectedFiles",
+        "title": "Add Tags to Selected Files",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.removeTagsFromSelectedFiles",
+        "title": "Remove Tags from Selected Files",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.showCommonTags",
+        "title": "Show Common Tags (Multi-Select)",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.findFilesWithTags",
+        "title": "Find Files by Tag Criteria",
+        "category": "Lattice Tags"
       }
     ],
     "grammars": [

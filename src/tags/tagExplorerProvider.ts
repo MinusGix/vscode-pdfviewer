@@ -1830,4 +1830,305 @@ export function registerTagCommands(
       }
     })
   );
+
+  // ==================== Multi-Select / Batch Commands ====================
+
+  // Add tags to selected files
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.addTagsToSelectedFiles',
+      async (...args: unknown[]) => {
+        if (!tagManager.addTagsToFiles) {
+          vscode.window.showWarningMessage('Batch operations are not supported in this configuration');
+          return;
+        }
+
+        // Get selected files from explorer context or prompt
+        let uris: vscode.Uri[] = [];
+
+        // Check if files were passed from explorer context menu
+        if (args.length > 0 && Array.isArray(args[1])) {
+          uris = args[1] as vscode.Uri[];
+        } else if (args.length > 0 && args[0] && typeof args[0] === 'object' && 'fsPath' in args[0]) {
+          uris = [args[0] as vscode.Uri];
+        }
+
+        if (uris.length === 0) {
+          // No files selected - use tracked files picker
+          const files = tagManager.getAllTrackedFiles();
+          if (files.length === 0) {
+            vscode.window.showInformationMessage('No tracked files found');
+            return;
+          }
+
+          const picked = await vscode.window.showQuickPick(
+            files.map((f) => ({
+              label: f.filename,
+              description: f.path,
+              uri: getUriFromRelativePath(f.path),
+              picked: false,
+            })),
+            {
+              canPickMany: true,
+              placeHolder: 'Select files to tag',
+            }
+          );
+
+          if (!picked || picked.length === 0) return;
+          uris = picked.map((p) => p.uri).filter((u): u is vscode.Uri => u !== undefined);
+        }
+
+        if (uris.length === 0) return;
+
+        // Get tags to add
+        const existingTags = tagManager.getAllTags();
+        const tagInput = await vscode.window.showInputBox({
+          prompt: `Enter tags to add to ${uris.length} file(s) (comma-separated)`,
+          placeHolder: existingTags.slice(0, 5).map((t) => t.name).join(', ') || 'tag1, tag2',
+        });
+
+        if (!tagInput) return;
+        const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean);
+        if (tags.length === 0) return;
+
+        const result = await tagManager.addTagsToFiles(uris, tags);
+        vscode.window.showInformationMessage(
+          `Added ${result.tagsAdded} tag(s) to ${result.filesAffected} file(s)`
+        );
+      }
+    )
+  );
+
+  // Remove tags from selected files
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.removeTagsFromSelectedFiles',
+      async (...args: unknown[]) => {
+        if (!tagManager.removeTagsFromFiles) {
+          vscode.window.showWarningMessage('Batch operations are not supported in this configuration');
+          return;
+        }
+
+        // Get selected files
+        let uris: vscode.Uri[] = [];
+
+        if (args.length > 0 && Array.isArray(args[1])) {
+          uris = args[1] as vscode.Uri[];
+        } else if (args.length > 0 && args[0] && typeof args[0] === 'object' && 'fsPath' in args[0]) {
+          uris = [args[0] as vscode.Uri];
+        }
+
+        if (uris.length === 0) {
+          // Show file picker
+          const files = tagManager.getAllTrackedFiles().filter((f) => f.tags.length > 0);
+          if (files.length === 0) {
+            vscode.window.showInformationMessage('No tagged files found');
+            return;
+          }
+
+          const picked = await vscode.window.showQuickPick(
+            files.map((f) => ({
+              label: f.filename,
+              description: `${f.path} - Tags: ${f.tags.join(', ')}`,
+              uri: getUriFromRelativePath(f.path),
+            })),
+            {
+              canPickMany: true,
+              placeHolder: 'Select files to remove tags from',
+            }
+          );
+
+          if (!picked || picked.length === 0) return;
+          uris = picked.map((p) => p.uri).filter((u): u is vscode.Uri => u !== undefined);
+        }
+
+        if (uris.length === 0) return;
+
+        // Get common tags for the selected files
+        const commonTags = tagManager.getCommonTags?.(uris) ?? [];
+        const allTags = tagManager.getAllTagsForFiles?.(uris) ?? [];
+
+        if (allTags.length === 0) {
+          vscode.window.showInformationMessage('Selected files have no tags');
+          return;
+        }
+
+        // Show tag picker
+        const picked = await vscode.window.showQuickPick(
+          allTags.map((t) => ({
+            label: t,
+            description: commonTags.includes(t) ? '(common to all selected files)' : '',
+            tag: t,
+          })),
+          {
+            canPickMany: true,
+            placeHolder: 'Select tags to remove',
+          }
+        );
+
+        if (!picked || picked.length === 0) return;
+        const tagsToRemove = picked.map((p) => p.tag);
+
+        const result = tagManager.removeTagsFromFiles(uris, tagsToRemove);
+        vscode.window.showInformationMessage(
+          `Removed ${result.tagsRemoved} tag(s) from ${result.filesAffected} file(s)`
+        );
+      }
+    )
+  );
+
+  // Show common tags for selected files
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.showCommonTags',
+      async (...args: unknown[]) => {
+        if (!tagManager.getCommonTags) {
+          vscode.window.showWarningMessage('This feature is not supported in this configuration');
+          return;
+        }
+
+        // Get selected files
+        let uris: vscode.Uri[] = [];
+
+        if (args.length > 0 && Array.isArray(args[1])) {
+          uris = args[1] as vscode.Uri[];
+        } else if (args.length > 0 && args[0] && typeof args[0] === 'object' && 'fsPath' in args[0]) {
+          uris = [args[0] as vscode.Uri];
+        }
+
+        if (uris.length === 0) {
+          // Show file picker
+          const files = tagManager.getAllTrackedFiles();
+          if (files.length === 0) {
+            vscode.window.showInformationMessage('No tracked files found');
+            return;
+          }
+
+          const picked = await vscode.window.showQuickPick(
+            files.map((f) => ({
+              label: f.filename,
+              description: f.path,
+              uri: getUriFromRelativePath(f.path),
+            })),
+            {
+              canPickMany: true,
+              placeHolder: 'Select files to find common tags',
+            }
+          );
+
+          if (!picked || picked.length === 0) return;
+          uris = picked.map((p) => p.uri).filter((u): u is vscode.Uri => u !== undefined);
+        }
+
+        if (uris.length < 2) {
+          vscode.window.showInformationMessage('Select at least 2 files to find common tags');
+          return;
+        }
+
+        const commonTags = tagManager.getCommonTags(uris);
+        const allTags = tagManager.getAllTagsForFiles?.(uris) ?? [];
+        const tagCounts = tagManager.getTagCountsForFiles?.(uris) ?? [];
+
+        if (commonTags.length === 0) {
+          vscode.window.showInformationMessage(
+            `No common tags found among ${uris.length} files. ` +
+            `Total unique tags: ${allTags.length}`
+          );
+        } else {
+          const lines = [
+            `Common tags (${commonTags.length}): ${commonTags.join(', ')}`,
+            `Total unique tags: ${allTags.length}`,
+          ];
+          if (tagCounts.length > 0) {
+            lines.push(`Most frequent: ${tagCounts.slice(0, 3).map((t) => `${t.tagName}(${t.count})`).join(', ')}`);
+          }
+          vscode.window.showInformationMessage(lines.join(' | '));
+        }
+      }
+    )
+  );
+
+  // Find files with specific tag combination
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.tags.findFilesWithTags', async () => {
+      if (!tagManager.getFilesWithAllTags || !tagManager.getFilesWithAnyTags) {
+        vscode.window.showWarningMessage('This feature is not supported in this configuration');
+        return;
+      }
+
+      const tags = tagManager.getAllTags();
+      if (tags.length === 0) {
+        vscode.window.showInformationMessage('No tags exist yet');
+        return;
+      }
+
+      // Select search mode
+      const mode = await vscode.window.showQuickPick(
+        [
+          { label: 'Has ALL of these tags', mode: 'all' as const },
+          { label: 'Has ANY of these tags', mode: 'any' as const },
+          { label: 'Has NONE of these tags', mode: 'none' as const },
+          { label: 'Has NO tags (untagged)', mode: 'untagged' as const },
+        ],
+        { placeHolder: 'Select search mode' }
+      );
+      if (!mode) return;
+
+      let files: TaggedFile[];
+
+      if (mode.mode === 'untagged') {
+        files = tagManager.getUntaggedFiles?.() ?? [];
+      } else {
+        // Select tags
+        const picked = await vscode.window.showQuickPick(
+          tags.map((t) => ({
+            label: t.displayName,
+            description: `${t.fileCount} files`,
+            tag: t.name,
+          })),
+          {
+            canPickMany: true,
+            placeHolder: `Select tags (files must have ${mode.mode} of them)`,
+          }
+        );
+
+        if (!picked || picked.length === 0) return;
+        const selectedTags = picked.map((p) => p.tag);
+
+        switch (mode.mode) {
+          case 'all':
+            files = tagManager.getFilesWithAllTags(selectedTags);
+            break;
+          case 'any':
+            files = tagManager.getFilesWithAnyTags(selectedTags);
+            break;
+          case 'none':
+            files = tagManager.getFilesWithoutTags?.(selectedTags) ?? [];
+            break;
+        }
+      }
+
+      if (files.length === 0) {
+        vscode.window.showInformationMessage('No files found matching criteria');
+        return;
+      }
+
+      // Show results
+      const picked = await vscode.window.showQuickPick(
+        files.map((f) => ({
+          label: f.filename,
+          description: f.path,
+          detail: `Tags: ${f.tags.join(', ') || '(none)'}`,
+          uri: getUriFromRelativePath(f.path),
+        })),
+        {
+          placeHolder: `Found ${files.length} file(s)`,
+        }
+      );
+
+      if (picked?.uri) {
+        await vscode.commands.executeCommand('vscode.open', picked.uri);
+      }
+    })
+  );
 }

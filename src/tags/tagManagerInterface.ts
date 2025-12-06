@@ -149,6 +149,27 @@ export interface ITagManager extends vscode.Disposable {
   setAutoTagRuleEnabled?(id: string, enabled: boolean): boolean;
   getAutoTagsForPath?(filePath: string): string[];
   applyAutoTags?(uri: vscode.Uri): Promise<string[]>;
+
+  // Batch operations (optional - only SQLite backend supports these)
+  addTagsToFiles?(
+    uris: vscode.Uri[],
+    tags: string[]
+  ): Promise<{ filesAffected: number; tagsAdded: number }>;
+  removeTagsFromFiles?(
+    uris: vscode.Uri[],
+    tags: string[]
+  ): { filesAffected: number; tagsRemoved: number };
+  setTagsForFiles?(
+    uris: vscode.Uri[],
+    tags: string[]
+  ): { filesAffected: number };
+  getFilesWithAllTags?(tags: string[]): TaggedFile[];
+  getFilesWithAnyTags?(tags: string[]): TaggedFile[];
+  getFilesWithoutTags?(tags: string[]): TaggedFile[];
+  getUntaggedFiles?(): TaggedFile[];
+  getCommonTags?(uris: vscode.Uri[]): string[];
+  getAllTagsForFiles?(uris: vscode.Uri[]): string[];
+  getTagCountsForFiles?(uris: vscode.Uri[]): Array<{ tagName: string; count: number }>;
 }
 
 /**

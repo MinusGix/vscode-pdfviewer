@@ -712,6 +712,313 @@ export class LatticeDatabase {
     this.run('DELETE FROM tag_instances WHERE id = ?', [instanceId]);
   }
 
+  // ============================================================
+  // BATCH TAG OPERATIONS
+  // ============================================================
+
+  /**
+   * Add a tag to multiple files at once
+   */
+  public addTagToFiles(fileIds: string[], tagName: string): number {
+    const normalizedTag = tagName.toLowerCase();
+    this.upsertTag(normalizedTag, tagName);
+
+    let added = 0;
+    const now = Date.now();
+
+    for (const fileId of fileIds) {
+      // Check if already tagged
+      const existing = this.queryOne<{ id: string }>(
+        'SELECT id FROM tag_instances WHERE file_id = ? AND tag_name = ?',
+        [fileId, normalizedTag]
+      );
+
+      if (!existing) {
+        const id = nanoid();
+        this.run(
+          `INSERT INTO tag_instances (id, file_id, tag_name, created_at)
+           VALUES (?, ?, ?, ?)`,
+          [id, fileId, normalizedTag, now]
+        );
+        added++;
+      }
+    }
+
+    return added;
+  }
+
+  /**
+   * Remove a tag from multiple files at once
+   */
+  public removeTagFromFiles(fileIds: string[], tagName: string): number {
+    const normalizedTag = tagName.toLowerCase();
+    let removed = 0;
+
+    for (const fileId of fileIds) {
+      const result = this.run(
+        'DELETE FROM tag_instances WHERE file_id = ? AND tag_name = ?',
+        [fileId, normalizedTag]
+      );
+      removed += result.changes;
+    }
+
+    return removed;
+  }
+
+  /**
+   * Add multiple tags to a single file
+   */
+  public addTagsToFile(fileId: string, tagNames: string[]): number {
+    let added = 0;
+    for (const tag of tagNames) {
+      const normalizedTag = tag.toLowerCase();
+      this.upsertTag(normalizedTag, tag);
+
+      const existing = this.queryOne<{ id: string }>(
+        'SELECT id FROM tag_instances WHERE file_id = ? AND tag_name = ?',
+        [fileId, normalizedTag]
+      );
+
+      if (!existing) {
+        const id = nanoid();
+        this.run(
+          `INSERT INTO tag_instances (id, file_id, tag_name, created_at)
+           VALUES (?, ?, ?, ?)`,
+          [id, fileId, normalizedTag, Date.now()]
+        );
+        added++;
+      }
+    }
+    return added;
+  }
+
+  /**
+   * Remove multiple tags from a single file
+   */
+  public removeTagsFromFile(fileId: string, tagNames: string[]): number {
+    let removed = 0;
+    for (const tag of tagNames) {
+      const result = this.run(
+        'DELETE FROM tag_instances WHERE file_id = ? AND tag_name = ?',
+        [fileId, tag.toLowerCase()]
+      );
+      removed += result.changes;
+    }
+    return removed;
+  }
+
+  /**
+   * Add multiple tags to multiple files (batch operation)
+   */
+  public addTagsToFiles(fileIds: string[], tagNames: string[]): { filesAffected: number; tagsAdded: number } {
+    let tagsAdded = 0;
+    const filesAffected = new Set<string>();
+
+    for (const tag of tagNames) {
+      const normalizedTag = tag.toLowerCase();
+      this.upsertTag(normalizedTag, tag);
+
+      for (const fileId of fileIds) {
+        const existing = this.queryOne<{ id: string }>(
+          'SELECT id FROM tag_instances WHERE file_id = ? AND tag_name = ?',
+          [fileId, normalizedTag]
+        );
+
+        if (!existing) {
+          const id = nanoid();
+          this.run(
+            `INSERT INTO tag_instances (id, file_id, tag_name, created_at)
+             VALUES (?, ?, ?, ?)`,
+            [id, fileId, normalizedTag, Date.now()]
+          );
+          tagsAdded++;
+          filesAffected.add(fileId);
+        }
+      }
+    }
+
+    return { filesAffected: filesAffected.size, tagsAdded };
+  }
+
+  /**
+   * Remove multiple tags from multiple files (batch operation)
+   */
+  public removeTagsFromFiles(fileIds: string[], tagNames: string[]): { filesAffected: number; tagsRemoved: number } {
+    let tagsRemoved = 0;
+    const filesAffected = new Set<string>();
+
+    for (const tag of tagNames) {
+      for (const fileId of fileIds) {
+        const result = this.run(
+          'DELETE FROM tag_instances WHERE file_id = ? AND tag_name = ?',
+          [fileId, tag.toLowerCase()]
+        );
+        if (result.changes > 0) {
+          tagsRemoved += result.changes;
+          filesAffected.add(fileId);
+        }
+      }
+    }
+
+    return { filesAffected: filesAffected.size, tagsRemoved };
+  }
+
+  /**
+   * Set exact tags for multiple files (replace all existing tags)
+   */
+  public setTagsForFiles(fileIds: string[], tagNames: string[]): { filesAffected: number } {
+    const normalizedTags = tagNames.map((t) => t.toLowerCase());
+
+    // Ensure all tags exist
+    for (const tag of normalizedTags) {
+      this.upsertTag(tag, tag);
+    }
+
+    for (const fileId of fileIds) {
+      // Remove all existing tags
+      this.run('DELETE FROM tag_instances WHERE file_id = ?', [fileId]);
+
+      // Add new tags
+      for (const tag of normalizedTags) {
+        const id = nanoid();
+        this.run(
+          `INSERT INTO tag_instances (id, file_id, tag_name, created_at)
+           VALUES (?, ?, ?, ?)`,
+          [id, fileId, tag, Date.now()]
+        );
+      }
+    }
+
+    return { filesAffected: fileIds.length };
+  }
+
+  /**
+   * Get files that have ALL of the specified tags
+   */
+  public getFilesWithAllTags(tagNames: string[]): DbFile[] {
+    if (tagNames.length === 0) return [];
+
+    const normalizedTags = tagNames.map((t) => t.toLowerCase());
+    const placeholders = normalizedTags.map(() => '?').join(',');
+
+    // Find files that have all the specified tags
+    return this.query<DbFile>(
+      `SELECT f.* FROM files f
+       WHERE f.id IN (
+         SELECT file_id FROM tag_instances
+         WHERE tag_name IN (${placeholders})
+         GROUP BY file_id
+         HAVING COUNT(DISTINCT tag_name) = ?
+       )`,
+      [...normalizedTags, normalizedTags.length]
+    );
+  }
+
+  /**
+   * Get files that have ANY of the specified tags
+   */
+  public getFilesWithAnyTags(tagNames: string[]): DbFile[] {
+    if (tagNames.length === 0) return [];
+
+    const normalizedTags = tagNames.map((t) => t.toLowerCase());
+    const placeholders = normalizedTags.map(() => '?').join(',');
+
+    return this.query<DbFile>(
+      `SELECT DISTINCT f.* FROM files f
+       JOIN tag_instances ti ON f.id = ti.file_id
+       WHERE ti.tag_name IN (${placeholders})`,
+      normalizedTags
+    );
+  }
+
+  /**
+   * Get files that have NONE of the specified tags
+   */
+  public getFilesWithoutTags(tagNames: string[]): DbFile[] {
+    if (tagNames.length === 0) {
+      return this.getAllFiles();
+    }
+
+    const normalizedTags = tagNames.map((t) => t.toLowerCase());
+    const placeholders = normalizedTags.map(() => '?').join(',');
+
+    return this.query<DbFile>(
+      `SELECT f.* FROM files f
+       WHERE f.id NOT IN (
+         SELECT DISTINCT file_id FROM tag_instances
+         WHERE tag_name IN (${placeholders})
+       )`,
+      normalizedTags
+    );
+  }
+
+  /**
+   * Get untagged files
+   */
+  public getUntaggedFiles(): DbFile[] {
+    return this.query<DbFile>(
+      `SELECT f.* FROM files f
+       WHERE f.id NOT IN (SELECT DISTINCT file_id FROM tag_instances)`
+    );
+  }
+
+  /**
+   * Get common tags shared by all specified files
+   */
+  public getCommonTags(fileIds: string[]): string[] {
+    if (fileIds.length === 0) return [];
+    if (fileIds.length === 1) {
+      return this.getTagsForFile(fileIds[0]).map((t) => t.name);
+    }
+
+    const placeholders = fileIds.map(() => '?').join(',');
+
+    const results = this.query<{ tag_name: string }>(
+      `SELECT tag_name FROM tag_instances
+       WHERE file_id IN (${placeholders})
+       GROUP BY tag_name
+       HAVING COUNT(DISTINCT file_id) = ?`,
+      [...fileIds, fileIds.length]
+    );
+
+    return results.map((r) => r.tag_name);
+  }
+
+  /**
+   * Get all unique tags across specified files
+   */
+  public getAllTagsForFiles(fileIds: string[]): string[] {
+    if (fileIds.length === 0) return [];
+
+    const placeholders = fileIds.map(() => '?').join(',');
+
+    const results = this.query<{ tag_name: string }>(
+      `SELECT DISTINCT tag_name FROM tag_instances
+       WHERE file_id IN (${placeholders})`,
+      fileIds
+    );
+
+    return results.map((r) => r.tag_name);
+  }
+
+  /**
+   * Get tag counts for specified files
+   */
+  public getTagCountsForFiles(fileIds: string[]): Array<{ tagName: string; count: number }> {
+    if (fileIds.length === 0) return [];
+
+    const placeholders = fileIds.map(() => '?').join(',');
+
+    return this.query<{ tagName: string; count: number }>(
+      `SELECT tag_name as tagName, COUNT(*) as count 
+       FROM tag_instances
+       WHERE file_id IN (${placeholders})
+       GROUP BY tag_name
+       ORDER BY count DESC`,
+      fileIds
+    );
+  }
+
   /**
    * Get tag instances for a file
    */
