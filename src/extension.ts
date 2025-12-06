@@ -3,7 +3,9 @@ import { PdfCustomProvider } from './pdfProvider';
 import { WebPreviewProvider } from './webProvider';
 import { TextEncoder } from 'util';
 import { DocumentTitleManager } from './documentTitles';
+import { DocumentTitleManagerSqlite } from './documentTitlesSqlite';
 import { CardManager } from './SRS/cardManager';
+import { CardManagerSqlite } from './SRS/cardManagerSqlite';
 import { MdParser } from './SRS/mdParser';
 import { CardReviewView } from './SRS/cardReviewView';
 import { CardListView } from './SRS/cardListView';
@@ -11,6 +13,13 @@ import { toggleBlockquote } from './utils/blockquote';
 // LiveMdEditorProvider intentionally disabled/unregistered; keep import removed.
 import { BasicWysiwygProvider } from './markdown/basicWysiwygProvider';
 import { NotesAssociationManager } from './notesAssociation';
+import { NotesAssociationManagerSqlite } from './notesAssociationSqlite';
+import {
+  initializeTagSystem,
+  TagExplorerProvider,
+  registerTagCommands,
+} from './tags';
+import { LatticeDatabase } from './database';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
@@ -45,14 +54,65 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const extensionRoot = context.extensionUri;
 
-  // Initialize document title manager
-  DocumentTitleManager.init(context.workspaceState);
-  context.subscriptions.push(DocumentTitleManager.getInstance());
+  // Initialize tag system (SQLite with fallback to JSON)
+  // This also initializes the database if SQLite is available
+  const tagInitResult = await initializeTagSystem({
+    extensionContext: context,
+    showMigrationNotifications: true,
+  });
+  console.log(
+    `Lattice: Tag system initialized (SQLite: ${tagInitResult.usingSqlite}, Migration: ${tagInitResult.migrationPerformed})`
+  );
+  context.subscriptions.push(tagInitResult.tagManager);
 
-  // Initialize card manager
-  const cardManager = CardManager.getInstance();
-  await cardManager.initialize();
-  context.subscriptions.push(cardManager);
+  // Initialize managers based on whether SQLite is available
+  let documentTitleManager: DocumentTitleManager | DocumentTitleManagerSqlite;
+  let cardManager: CardManager | CardManagerSqlite;
+  let notesAssocManager: NotesAssociationManager | NotesAssociationManagerSqlite;
+
+  if (tagInitResult.usingSqlite && LatticeDatabase.isInitialized()) {
+    // Use SQLite-backed managers
+    console.log('Lattice: Using SQLite-backed managers');
+
+    await DocumentTitleManagerSqlite.init();
+    documentTitleManager = DocumentTitleManagerSqlite.getInstance();
+    context.subscriptions.push(documentTitleManager);
+
+    cardManager = CardManagerSqlite.getInstance();
+    await cardManager.initialize();
+    context.subscriptions.push(cardManager);
+
+    await NotesAssociationManagerSqlite.init();
+    notesAssocManager = NotesAssociationManagerSqlite.getInstance();
+    context.subscriptions.push({ dispose: () => notesAssocManager.dispose() });
+  } else {
+    // Fall back to original managers
+    console.log('Lattice: Using JSON-backed managers');
+
+    DocumentTitleManager.init(context.workspaceState);
+    documentTitleManager = DocumentTitleManager.getInstance();
+    context.subscriptions.push(documentTitleManager);
+
+    cardManager = CardManager.getInstance();
+    await cardManager.initialize();
+    context.subscriptions.push(cardManager);
+
+    notesAssocManager = NotesAssociationManager.getInstance();
+    context.subscriptions.push({ dispose: () => notesAssocManager.dispose() });
+  }
+
+  // Register tag explorer tree view
+  const tagExplorerProvider = new TagExplorerProvider(tagInitResult.tagManager);
+  context.subscriptions.push(tagExplorerProvider);
+  context.subscriptions.push(
+    vscode.window.createTreeView('lattice.tagExplorer', {
+      treeDataProvider: tagExplorerProvider,
+      showCollapseAll: true,
+    })
+  );
+
+  // Register tag commands
+  registerTagCommands(context, tagInitResult.tagManager);
 
   // Track active custom editor tab more robustly: listen to both tab changes and active editor changes
   const updateActiveUiFromWindow = () => {
@@ -63,7 +123,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (activeTab.input.viewType === PdfCustomProvider.viewType ||
         activeTab.input.viewType === WebPreviewProvider.viewType) {
         activeCustomEditorTab = activeTab;
-        DocumentTitleManager.getInstance().updateStatusBar(activeTab.input.uri);
+        documentTitleManager.updateStatusBar(activeTab.input.uri);
         vscode.commands.executeCommand('setContext', 'lattice.isPdfPreviewActive', activeTab.input.viewType === PdfCustomProvider.viewType);
         vscode.commands.executeCommand('setContext', 'lattice.isWebPreviewActive', activeTab.input.viewType === WebPreviewProvider.viewType);
       }
@@ -71,11 +131,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       activeCustomEditorTab = undefined;
       vscode.commands.executeCommand('setContext', 'lattice.isPdfPreviewActive', false);
       vscode.commands.executeCommand('setContext', 'lattice.isWebPreviewActive', false);
-      DocumentTitleManager.getInstance().updateStatusBar(vscode.Uri.file(''));
+      documentTitleManager.updateStatusBar(vscode.Uri.file(''));
     }
 
     // Update notes association button for any active PDF (custom or text editor)
-    NotesAssociationManager.getInstance().updateActivePdf(pdfUri);
+    notesAssocManager.updateActivePdf(pdfUri);
   };
 
   const getActivePdfUriNow = (): vscode.Uri | undefined => {
@@ -136,9 +196,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
   );
 
-  // Initialize notes association manager and ensure it is disposed
-  const notesAssoc = NotesAssociationManager.getInstance();
-  context.subscriptions.push({ dispose: () => notesAssoc.dispose() });
 
   // Register basic WYSIWYG editor provider
   context.subscriptions.push(
@@ -213,8 +270,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showErrorMessage('No active PDF');
         return;
       }
-      notesAssoc.updateActivePdf(activePdfUri);
-      await NotesAssociationManager.getInstance().associateWithActivePdf(activePdfUri);
+      notesAssocManager.updateActivePdf(activePdfUri);
+      await notesAssocManager.associateWithActivePdf(activePdfUri);
     })
   );
 
@@ -225,8 +282,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showErrorMessage('No active PDF');
         return;
       }
-      NotesAssociationManager.getInstance().updateActivePdf(activePdfUri);
-      await NotesAssociationManager.getInstance().openAssociated('beside');
+      notesAssocManager.updateActivePdf(activePdfUri);
+      await notesAssocManager.openAssociated('beside');
     })
   );
 
@@ -237,8 +294,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showErrorMessage('No active PDF');
         return;
       }
-      NotesAssociationManager.getInstance().updateActivePdf(activePdfUri);
-      await NotesAssociationManager.getInstance().openAssociated('current');
+      notesAssocManager.updateActivePdf(activePdfUri);
+      await notesAssocManager.openAssociated('current');
     })
   );
 
@@ -276,7 +333,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showErrorMessage('No active document to edit title');
         return;
       }
-      await DocumentTitleManager.getInstance().editTitle(targetUri);
+      await documentTitleManager.editTitle(targetUri);
     })
   );
 

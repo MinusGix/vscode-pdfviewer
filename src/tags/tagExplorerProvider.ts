@@ -9,7 +9,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { TagManager } from './tagManager';
+import { ITagManager, getTagManager, hasTagManager } from './tagManagerInterface';
 import { TaggedFile, Tag } from './tagTypes';
 import { getRelativePath, getUriFromRelativePath } from './fileIdentity';
 import { getThemeColorId } from './tagColors';
@@ -53,25 +53,35 @@ export class TagExplorerProvider
   >();
   public readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  private tagManager: TagManager;
+  private tagManager: ITagManager;
   private currentFileUri: vscode.Uri | undefined;
   private expandedTag: string | undefined; // Track which tag is expanded to show files
+  private disposables: vscode.Disposable[] = [];
 
-  constructor() {
-    this.tagManager = TagManager.getInstance();
+  constructor(tagManager: ITagManager) {
+    this.tagManager = tagManager;
 
     // Listen for tag changes
-    this.tagManager.onDidChangeTags(() => {
-      this._onDidChangeTreeData.fire(undefined);
-    });
+    this.disposables.push(
+      this.tagManager.onDidChangeTags(() => {
+        this._onDidChangeTreeData.fire(undefined);
+      })
+    );
 
     // Listen for active editor changes
-    vscode.window.onDidChangeActiveTextEditor((editor) => {
-      this.updateCurrentFile(editor?.document.uri);
-    });
+    this.disposables.push(
+      vscode.window.onDidChangeActiveTextEditor((editor) => {
+        this.updateCurrentFile(editor?.document.uri);
+      })
+    );
 
     // Initialize with current editor
     this.updateCurrentFile(vscode.window.activeTextEditor?.document.uri);
+  }
+
+  public dispose(): void {
+    this.disposables.forEach((d) => d.dispose());
+    this._onDidChangeTreeData.dispose();
   }
 
   private updateCurrentFile(uri: vscode.Uri | undefined): void {
@@ -423,14 +433,16 @@ export class TagExplorerProvider
  * Helper to add a tag to a file with picker UI
  * Uses a custom QuickPick that allows typing to filter OR create new tags
  */
-async function addTagToFile(uri: vscode.Uri): Promise<void> {
-  const tagManager = TagManager.getInstance();
+async function addTagToFile(
+  uri: vscode.Uri,
+  tagManager: ITagManager
+): Promise<void> {
   const existingTags = tagManager.getAllTags();
   const currentTags = tagManager.getTags(uri);
 
   // Filter out tags already on this file
   const availableTags = existingTags.filter(
-    (t) => !currentTags.includes(t.name)
+    (t: Tag) => !currentTags.includes(t.name)
   );
 
   return new Promise<void>((resolve) => {
@@ -443,13 +455,13 @@ async function addTagToFile(uri: vscode.Uri): Promise<void> {
     const updateItems = () => {
       const typedValue = quickPick.value.trim();
       const filtered = availableTags.filter(
-        (t) =>
+        (t: Tag) =>
           t.displayName.toLowerCase().includes(typedValue.toLowerCase()) ||
           t.name.includes(typedValue.toLowerCase())
       );
 
       const items: (vscode.QuickPickItem & { tag?: string })[] = filtered.map(
-        (t) => ({
+        (t: Tag) => ({
           label: t.displayName,
           description: `${t.fileCount} files`,
           tag: t.name,
@@ -458,7 +470,7 @@ async function addTagToFile(uri: vscode.Uri): Promise<void> {
 
       // If typed value doesn't match any existing tag exactly, offer to create it
       const exactMatch = availableTags.some(
-        (t) => t.name === typedValue.toLowerCase()
+        (t: Tag) => t.name === typedValue.toLowerCase()
       );
       if (typedValue && !exactMatch) {
         items.unshift({
@@ -472,7 +484,7 @@ async function addTagToFile(uri: vscode.Uri): Promise<void> {
     };
 
     // Initial items
-    quickPick.items = availableTags.map((t) => ({
+    quickPick.items = availableTags.map((t: Tag) => ({
       label: t.displayName,
       description: `${t.fileCount} files`,
       tag: t.name,
@@ -509,8 +521,10 @@ async function addTagToFile(uri: vscode.Uri): Promise<void> {
 /**
  * Register all tag-related commands
  */
-export function registerTagCommands(context: vscode.ExtensionContext): void {
-  const tagManager = TagManager.getInstance();
+export function registerTagCommands(
+  context: vscode.ExtensionContext,
+  tagManager: ITagManager
+): void {
 
   // Add tag to current file
   context.subscriptions.push(
@@ -522,7 +536,7 @@ export function registerTagCommands(context: vscode.ExtensionContext): void {
           vscode.window.showWarningMessage('No file is currently open');
           return;
         }
-        await addTagToFile(editor.document.uri);
+        await addTagToFile(editor.document.uri, tagManager);
       }
     )
   );
@@ -539,7 +553,7 @@ export function registerTagCommands(context: vscode.ExtensionContext): void {
           vscode.window.showWarningMessage('No file selected');
           return;
         }
-        await addTagToFile(uri);
+        await addTagToFile(uri, tagManager);
       }
     )
   );

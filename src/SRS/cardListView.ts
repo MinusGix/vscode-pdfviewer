@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MdCard } from './card';
-import { CardManager } from './cardManager';
+import { ICardManager } from './cardManagerInterface';
 import { marked } from 'marked';
 import { Eye, EyeOff, ExternalLink, Square, CheckSquare } from 'lucide-static';
 import { getStyles, mathJaxConfig } from './styles';
@@ -28,7 +28,7 @@ export class CardListView {
 
     private constructor(
         private readonly extensionRoot: vscode.Uri,
-        private readonly cardManager: CardManager
+        private readonly cardManager: ICardManager
     ) {
         this.panel = vscode.window.createWebviewPanel(
             CardListView.viewType,
@@ -320,7 +320,7 @@ export class CardListView {
         this.displayCards();
     }
 
-    public static show(extensionRoot: vscode.Uri, cardManager: CardManager) {
+    public static show(extensionRoot: vscode.Uri, cardManager: ICardManager) {
         if (CardListView.instance) {
             // If we have an existing instance, just reveal it
             CardListView.instance.panel.reveal();

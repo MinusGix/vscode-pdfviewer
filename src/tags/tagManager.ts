@@ -46,7 +46,7 @@ export class TagManager implements vscode.Disposable {
   /** Map from workspace-relative path to file ID for fast lookups */
   private pathToIdMap: Map<string, string> = new Map();
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): TagManager {
     if (!TagManager.instance) {
@@ -108,14 +108,12 @@ export class TagManager implements vscode.Disposable {
     }
 
     // Add new tags (avoid duplicates)
-    const normalizedNewTags = tags
-      .map((t) => t.toLowerCase().trim())
-      .filter((t) => t.length > 0);
-    const originalTags = [...tags]; // Keep original casing
+    // Process tags keeping normalized and original in sync
+    const tagPairs = tags
+      .map((t) => ({ normalized: t.toLowerCase().trim(), original: t }))
+      .filter((pair) => pair.normalized.length > 0);
 
-    for (let i = 0; i < normalizedNewTags.length; i++) {
-      const normalizedTag = normalizedNewTags[i];
-      const originalTag = originalTags[i];
+    for (const { normalized: normalizedTag, original: originalTag } of tagPairs) {
 
       if (!trackedFile.tags.includes(normalizedTag)) {
         trackedFile.tags.push(normalizedTag);
@@ -135,7 +133,7 @@ export class TagManager implements vscode.Disposable {
       type: 'add',
       fileId,
       filePath: relativePath,
-      tags: normalizedNewTags,
+      tags: tagPairs.map((p) => p.normalized),
     });
   }
 

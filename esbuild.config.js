@@ -37,7 +37,9 @@ async function main() {
             'mdast-util-*',
             'micromark*',
             'hast-util-*',
-            'katex'
+            'katex',
+            // sql.js uses WASM and needs special handling
+            'sql.js'
         ],
         logLevel: 'info',
     });

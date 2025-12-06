@@ -186,7 +186,10 @@ export async function findRecoveryCandidates(
       // Bonus for being in a similar directory structure
       const oldDir = path.dirname(trackedFile.path);
       const newDir = path.dirname(relativePath);
-      if (oldDir.split(path.sep).some((part) => newDir.includes(part))) {
+      const oldParts = oldDir.split(path.sep).filter((p) => p.length > 0);
+      const newParts = new Set(newDir.split(path.sep).filter((p) => p.length > 0));
+      // Check for exact path component matches (not substring)
+      if (oldParts.some((part) => newParts.has(part))) {
         confidence += 0.1;
         reasons.push('Similar directory structure');
       }

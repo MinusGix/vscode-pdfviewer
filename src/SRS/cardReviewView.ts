@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MdCard } from './card';
-import { CardManager } from './cardManager';
+import { ICardManager } from './cardManagerInterface';
 import { Card as FSRSCard, Rating } from 'ts-fsrs';
 import { marked } from 'marked';
 import { Eye, EyeOff, ExternalLink } from 'lucide-static';
@@ -21,7 +21,7 @@ export class CardReviewView {
 
     private constructor(
         private readonly extensionRoot: vscode.Uri,
-        private readonly cardManager: CardManager
+        private readonly cardManager: ICardManager
     ) {
         this.panel = vscode.window.createWebviewPanel(
             CardReviewView.viewType,
@@ -300,7 +300,7 @@ export class CardReviewView {
         });
     }
 
-    public static show(extensionRoot: vscode.Uri, cardManager: CardManager) {
+    public static show(extensionRoot: vscode.Uri, cardManager: ICardManager) {
         if (CardReviewView.instance) {
             // If we have an existing instance, just reveal it
             CardReviewView.instance.panel.reveal();
