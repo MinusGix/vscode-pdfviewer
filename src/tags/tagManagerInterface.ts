@@ -96,6 +96,32 @@ export interface ITagManager extends vscode.Disposable {
   getRootTags?(): string[];
   getFilesWithTagOrDescendants?(tagName: string): TaggedFile[];
   getTagHierarchy?(): import('../database').TagHierarchyNode[];
+
+  // Folder inheritance operations (optional - only SQLite backend supports these)
+  getAllFolderRules?(): import('../database').FolderRule[];
+  getFolderRule?(folderPath: string): import('../database').FolderRule | null;
+  createFolderRule?(
+    folderPath: string,
+    inheritedTags: string[],
+    options?: { recursive?: boolean; priority?: number }
+  ): boolean;
+  updateFolderRule?(
+    folderPath: string,
+    updates: {
+      inheritedTags?: string[];
+      recursive?: boolean;
+      priority?: number;
+    }
+  ): boolean;
+  deleteFolderRule?(folderPath: string): boolean;
+  addTagToFolderRule?(folderPath: string, tag: string): boolean;
+  removeTagFromFolderRule?(folderPath: string, tag: string): boolean;
+  getInheritedTags?(filePath: string): string[];
+  getEffectiveInheritedTags?(uri: vscode.Uri): string[];
+  getEffectiveTags?(uri: vscode.Uri): { explicit: string[]; inherited: string[] };
+  addFileTagExclusion?(uri: vscode.Uri, tagName: string): boolean;
+  removeFileTagExclusion?(uri: vscode.Uri, tagName: string): boolean;
+  getFileTagExclusions?(uri: vscode.Uri): string[];
 }
 
 /**

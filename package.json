@@ -262,6 +262,26 @@
         "command": "lattice.tags.browseWithDescendants",
         "title": "Browse Tag with Descendants",
         "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.createFolderRule",
+        "title": "Create Folder Tag Rule",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.manageFolderRules",
+        "title": "Manage Folder Tag Rules",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.showEffectiveTags",
+        "title": "Show Effective Tags (Explicit + Inherited)",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.excludeInheritedTag",
+        "title": "Exclude Inherited Tag from File",
+        "category": "Lattice Tags"
       }
     ],
     "grammars": [

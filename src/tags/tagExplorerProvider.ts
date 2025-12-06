@@ -1410,4 +1410,246 @@ export function registerTagCommands(
       }
     )
   );
+
+  // ==================== Folder Rule Commands ====================
+
+  // Create folder rule
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.createFolderRule',
+      async (arg?: vscode.Uri) => {
+        if (!tagManager.createFolderRule) {
+          vscode.window.showWarningMessage('Folder rules are not supported in this configuration');
+          return;
+        }
+
+        // Get folder path
+        let folderPath: string | undefined;
+        if (arg?.fsPath) {
+          folderPath = getRelativePath(arg);
+        } else {
+          folderPath = await vscode.window.showInputBox({
+            prompt: 'Enter folder path (relative to workspace)',
+            placeHolder: 'src/components',
+          });
+        }
+        if (!folderPath) return;
+
+        // Check if rule already exists
+        const existing = tagManager.getFolderRule?.(folderPath);
+        if (existing) {
+          vscode.window.showWarningMessage(`A rule already exists for "${folderPath}"`);
+          return;
+        }
+
+        // Get tags to inherit
+        const tagInput = await vscode.window.showInputBox({
+          prompt: 'Enter tags to inherit (comma-separated)',
+          placeHolder: 'frontend, react, component',
+        });
+        if (!tagInput) return;
+
+        const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean);
+        if (tags.length === 0) return;
+
+        // Ask about recursive
+        const recursiveChoice = await vscode.window.showQuickPick(
+          [
+            { label: 'Yes', description: 'Apply to all files in subfolders', value: true },
+            { label: 'No', description: 'Only apply to files directly in this folder', value: false },
+          ],
+          { placeHolder: 'Apply recursively to subfolders?' }
+        );
+        if (!recursiveChoice) return;
+
+        const result = tagManager.createFolderRule(folderPath, tags, {
+          recursive: recursiveChoice.value,
+        });
+
+        if (result) {
+          vscode.window.showInformationMessage(
+            `Created folder rule: "${folderPath}" → [${tags.join(', ')}]`
+          );
+        } else {
+          vscode.window.showErrorMessage('Failed to create folder rule');
+        }
+      }
+    )
+  );
+
+  // Manage folder rules
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.tags.manageFolderRules', async () => {
+      if (!tagManager.getAllFolderRules) {
+        vscode.window.showWarningMessage('Folder rules are not supported in this configuration');
+        return;
+      }
+
+      const rules = tagManager.getAllFolderRules();
+
+      if (rules.length === 0) {
+        const create = await vscode.window.showQuickPick(
+          [
+            { label: '$(add) Create New Folder Rule', action: 'create' },
+          ],
+          { placeHolder: 'No folder rules exist yet' }
+        );
+        if (create?.action === 'create') {
+          await vscode.commands.executeCommand('lattice.tags.createFolderRule');
+        }
+        return;
+      }
+
+      type RuleItem = { label: string; description: string; detail: string; rule: typeof rules[0] | null; action?: string };
+      const items: RuleItem[] = [
+        { label: '$(add) Create New Folder Rule', description: '', detail: '', rule: null, action: 'create' },
+        { label: '', description: '', detail: '', rule: null, action: 'separator' },
+        ...rules.map((r): RuleItem => ({
+          label: r.folderPath,
+          description: r.recursive ? '(recursive)' : '(direct only)',
+          detail: `Tags: ${r.inheritedTags.join(', ')}`,
+          rule: r,
+        })),
+      ];
+
+      // Filter out the separator since QuickPick doesn't support it directly
+      const pickItems = items.filter((i) => i.action !== 'separator');
+
+      const picked = await vscode.window.showQuickPick(pickItems, {
+        placeHolder: 'Select a folder rule to manage',
+      });
+      if (!picked) return;
+
+      if (picked.action === 'create') {
+        await vscode.commands.executeCommand('lattice.tags.createFolderRule');
+        return;
+      }
+
+      if (!picked.rule) return;
+
+      // Show management options for this rule
+      const action = await vscode.window.showQuickPick(
+        [
+          { label: '$(edit) Edit Tags', action: 'editTags' },
+          { label: '$(settings) Toggle Recursive', action: 'toggleRecursive' },
+          { label: '$(trash) Delete Rule', action: 'delete' },
+        ],
+        { placeHolder: `Manage rule: ${picked.rule.folderPath}` }
+      );
+      if (!action) return;
+
+      switch (action.action) {
+        case 'editTags': {
+          const newTags = await vscode.window.showInputBox({
+            prompt: 'Enter new tags (comma-separated)',
+            value: picked.rule.inheritedTags.join(', '),
+          });
+          if (newTags !== undefined) {
+            const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
+            tagManager.updateFolderRule?.(picked.rule.folderPath, { inheritedTags: tags });
+            vscode.window.showInformationMessage('Folder rule updated');
+          }
+          break;
+        }
+        case 'toggleRecursive': {
+          tagManager.updateFolderRule?.(picked.rule.folderPath, {
+            recursive: !picked.rule.recursive,
+          });
+          vscode.window.showInformationMessage(
+            `Folder rule is now ${!picked.rule.recursive ? 'recursive' : 'direct only'}`
+          );
+          break;
+        }
+        case 'delete': {
+          const confirm = await vscode.window.showWarningMessage(
+            `Delete folder rule for "${picked.rule.folderPath}"?`,
+            { modal: true },
+            'Delete'
+          );
+          if (confirm === 'Delete') {
+            tagManager.deleteFolderRule?.(picked.rule.folderPath);
+            vscode.window.showInformationMessage('Folder rule deleted');
+          }
+          break;
+        }
+      }
+    })
+  );
+
+  // Show effective tags for current file
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.tags.showEffectiveTags', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showWarningMessage('No file is currently open');
+        return;
+      }
+
+      if (!tagManager.getEffectiveTags) {
+        // Fall back to just showing explicit tags
+        const tags = tagManager.getTags(editor.document.uri);
+        if (tags.length === 0) {
+          vscode.window.showInformationMessage('This file has no tags');
+        } else {
+          vscode.window.showInformationMessage(`Tags: ${tags.join(', ')}`);
+        }
+        return;
+      }
+
+      const { explicit, inherited } = tagManager.getEffectiveTags(editor.document.uri);
+
+      if (explicit.length === 0 && inherited.length === 0) {
+        vscode.window.showInformationMessage('This file has no tags');
+        return;
+      }
+
+      const lines: string[] = [];
+      if (explicit.length > 0) {
+        lines.push(`Explicit: ${explicit.join(', ')}`);
+      }
+      if (inherited.length > 0) {
+        lines.push(`Inherited: ${inherited.join(', ')}`);
+      }
+
+      vscode.window.showInformationMessage(lines.join(' | '));
+    })
+  );
+
+  // Exclude file from inherited tag
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.excludeInheritedTag',
+      async (arg?: vscode.Uri) => {
+        if (!tagManager.addFileTagExclusion || !tagManager.getEffectiveInheritedTags) {
+          vscode.window.showWarningMessage('Tag exclusions are not supported in this configuration');
+          return;
+        }
+
+        const uri = arg ?? vscode.window.activeTextEditor?.document.uri;
+        if (!uri) {
+          vscode.window.showWarningMessage('No file selected');
+          return;
+        }
+
+        const inherited = tagManager.getEffectiveInheritedTags(uri);
+        if (inherited.length === 0) {
+          vscode.window.showInformationMessage('This file has no inherited tags');
+          return;
+        }
+
+        const picked = await vscode.window.showQuickPick(
+          inherited.map((t) => ({ label: t, tag: t })),
+          { placeHolder: 'Select inherited tag to exclude from this file' }
+        );
+        if (!picked) return;
+
+        const result = tagManager.addFileTagExclusion(uri, picked.tag);
+        if (result) {
+          vscode.window.showInformationMessage(`Excluded "${picked.tag}" from this file`);
+        } else {
+          vscode.window.showErrorMessage('Failed to add exclusion');
+        }
+      }
+    )
+  );
 }

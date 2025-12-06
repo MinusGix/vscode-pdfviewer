@@ -19,6 +19,7 @@ import {
   DbDocumentMetadata,
   DbNotesAssociation,
   DbFolderRule,
+  DbFileTagExclusion,
   DbViewMode,
   DbTagTemplate,
   TagInstanceWithMetadata,
@@ -27,6 +28,7 @@ import {
   TagHierarchyNode,
   TagTemplate,
   TagExpression,
+  FolderRule,
   MigrationSource,
 } from './types';
 import { nanoid } from 'nanoid';
@@ -415,10 +417,11 @@ export class LatticeDatabase {
   /**
    * Run a SQL statement with parameters
    */
-  public run(sql: string, params: unknown[] = []): void {
+  public run(sql: string, params: unknown[] = []): { changes: number } {
     if (!this.db) throw new Error('Database not initialized');
     this.db.run(sql, params as (string | number | Uint8Array | null)[]);
     this.markDirty();
+    return { changes: this.db.getRowsModified() };
   }
 
   /**
@@ -955,6 +958,229 @@ export class LatticeDatabase {
     }
 
     return Array.from(tags);
+  }
+
+  /**
+   * Get all folder rules
+   */
+  public getAllFolderRules(): FolderRule[] {
+    const dbRules = this.query<DbFolderRule>(
+      'SELECT * FROM folder_rules ORDER BY priority DESC, folder_path ASC'
+    );
+    return dbRules.map((r) => this.parseFolderRule(r));
+  }
+
+  /**
+   * Get a folder rule by path
+   */
+  public getFolderRule(folderPath: string): FolderRule | null {
+    const results = this.query<DbFolderRule>(
+      'SELECT * FROM folder_rules WHERE folder_path = ?',
+      [folderPath]
+    );
+    return results.length > 0 ? this.parseFolderRule(results[0]) : null;
+  }
+
+  /**
+   * Create a new folder rule
+   */
+  public createFolderRule(
+    folderPath: string,
+    inheritedTags: string[],
+    options: { recursive?: boolean; priority?: number } = {}
+  ): boolean {
+    const { recursive = true, priority = 0 } = options;
+
+    try {
+      this.run(
+        `INSERT INTO folder_rules (folder_path, inherited_tags, recursive, priority, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          folderPath,
+          JSON.stringify(inheritedTags.map((t) => t.toLowerCase())),
+          recursive ? 1 : 0,
+          priority,
+          Date.now(),
+        ]
+      );
+      return true;
+    } catch {
+      // Already exists
+      return false;
+    }
+  }
+
+  /**
+   * Update a folder rule
+   */
+  public updateFolderRule(
+    folderPath: string,
+    updates: {
+      inheritedTags?: string[];
+      recursive?: boolean;
+      priority?: number;
+    }
+  ): boolean {
+    const existing = this.getFolderRule(folderPath);
+    if (!existing) {
+      return false;
+    }
+
+    const newTags = updates.inheritedTags ?? existing.inheritedTags;
+    const newRecursive = updates.recursive ?? existing.recursive;
+    const newPriority = updates.priority ?? existing.priority;
+
+    this.run(
+      `UPDATE folder_rules 
+       SET inherited_tags = ?, recursive = ?, priority = ?
+       WHERE folder_path = ?`,
+      [
+        JSON.stringify(newTags.map((t) => t.toLowerCase())),
+        newRecursive ? 1 : 0,
+        newPriority,
+        folderPath,
+      ]
+    );
+    return true;
+  }
+
+  /**
+   * Delete a folder rule
+   */
+  public deleteFolderRule(folderPath: string): boolean {
+    const result = this.run(
+      'DELETE FROM folder_rules WHERE folder_path = ?',
+      [folderPath]
+    );
+    return result.changes > 0;
+  }
+
+  /**
+   * Add a tag to a folder rule's inherited tags
+   */
+  public addTagToFolderRule(folderPath: string, tag: string): boolean {
+    const existing = this.getFolderRule(folderPath);
+    if (!existing) {
+      return false;
+    }
+
+    const normalizedTag = tag.toLowerCase();
+    if (existing.inheritedTags.includes(normalizedTag)) {
+      return true; // Already has this tag
+    }
+
+    const newTags = [...existing.inheritedTags, normalizedTag];
+    return this.updateFolderRule(folderPath, { inheritedTags: newTags });
+  }
+
+  /**
+   * Remove a tag from a folder rule's inherited tags
+   */
+  public removeTagFromFolderRule(folderPath: string, tag: string): boolean {
+    const existing = this.getFolderRule(folderPath);
+    if (!existing) {
+      return false;
+    }
+
+    const normalizedTag = tag.toLowerCase();
+    const newTags = existing.inheritedTags.filter((t) => t !== normalizedTag);
+    return this.updateFolderRule(folderPath, { inheritedTags: newTags });
+  }
+
+  /**
+   * Parse a DB folder rule to the application format
+   */
+  public parseFolderRule(dbRule: DbFolderRule): FolderRule {
+    return {
+      folderPath: dbRule.folder_path,
+      inheritedTags: JSON.parse(dbRule.inherited_tags) as string[],
+      recursive: dbRule.recursive === 1,
+      priority: dbRule.priority,
+      createdAt: dbRule.created_at,
+    };
+  }
+
+  // ============================================================
+  // FILE TAG EXCLUSION OPERATIONS
+  // ============================================================
+
+  /**
+   * Add an exclusion - file will not inherit this tag
+   */
+  public addFileTagExclusion(fileId: string, tagName: string): boolean {
+    const normalizedTag = tagName.toLowerCase();
+    try {
+      this.run(
+        'INSERT INTO file_tag_exclusions (file_id, tag_name) VALUES (?, ?)',
+        [fileId, normalizedTag]
+      );
+      return true;
+    } catch {
+      // Already exists
+      return false;
+    }
+  }
+
+  /**
+   * Remove an exclusion
+   */
+  public removeFileTagExclusion(fileId: string, tagName: string): boolean {
+    const normalizedTag = tagName.toLowerCase();
+    const result = this.run(
+      'DELETE FROM file_tag_exclusions WHERE file_id = ? AND tag_name = ?',
+      [fileId, normalizedTag]
+    );
+    return result.changes > 0;
+  }
+
+  /**
+   * Get all excluded tags for a file
+   */
+  public getFileTagExclusions(fileId: string): string[] {
+    const results = this.query<DbFileTagExclusion>(
+      'SELECT * FROM file_tag_exclusions WHERE file_id = ?',
+      [fileId]
+    );
+    return results.map((r) => r.tag_name);
+  }
+
+  /**
+   * Get all exclusions (for management UI)
+   */
+  public getAllFileTagExclusions(): Array<{ fileId: string; tagName: string }> {
+    const results = this.query<DbFileTagExclusion>(
+      'SELECT * FROM file_tag_exclusions'
+    );
+    return results.map((r) => ({ fileId: r.file_id, tagName: r.tag_name }));
+  }
+
+  /**
+   * Get effective inherited tags for a file (inherited minus exclusions)
+   */
+  public getEffectiveInheritedTags(filePath: string, fileId: string): string[] {
+    const inherited = this.getInheritedTags(filePath);
+    const exclusions = new Set(this.getFileTagExclusions(fileId));
+    return inherited.filter((tag) => !exclusions.has(tag));
+  }
+
+  /**
+   * Get all effective tags for a file (explicit + inherited)
+   */
+  public getEffectiveTags(filePath: string): { explicit: string[]; inherited: string[] } {
+    const file = this.getFileByPath(filePath);
+    if (!file) {
+      return { explicit: [], inherited: this.getInheritedTags(filePath) };
+    }
+
+    const explicitTags = this.getTagsForFile(file.id);
+    const explicit = explicitTags.map((t) => t.name);
+    const inherited = this.getEffectiveInheritedTags(filePath, file.id);
+    
+    // Filter out inherited tags that are already explicit
+    const explicitSet = new Set(explicit);
+    const uniqueInherited = inherited.filter((t) => !explicitSet.has(t));
+
+    return { explicit, inherited: uniqueInherited };
   }
 
   // ============================================================

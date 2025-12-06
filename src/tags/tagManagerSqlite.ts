@@ -1042,6 +1042,178 @@ export class TagManagerSqlite implements vscode.Disposable {
     return this.db.getTagHierarchy();
   }
 
+  // ================== Folder Tag Inheritance ==================
+
+  /**
+   * Get all folder rules
+   */
+  public getAllFolderRules(): import('../database').FolderRule[] {
+    if (!this.db) return [];
+    return this.db.getAllFolderRules();
+  }
+
+  /**
+   * Get a specific folder rule
+   */
+  public getFolderRule(folderPath: string): import('../database').FolderRule | null {
+    if (!this.db) return null;
+    return this.db.getFolderRule(folderPath);
+  }
+
+  /**
+   * Create a new folder rule for tag inheritance
+   */
+  public createFolderRule(
+    folderPath: string,
+    inheritedTags: string[],
+    options?: { recursive?: boolean; priority?: number }
+  ): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.createFolderRule(folderPath, inheritedTags, options);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Update an existing folder rule
+   */
+  public updateFolderRule(
+    folderPath: string,
+    updates: {
+      inheritedTags?: string[];
+      recursive?: boolean;
+      priority?: number;
+    }
+  ): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.updateFolderRule(folderPath, updates);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Delete a folder rule
+   */
+  public deleteFolderRule(folderPath: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.deleteFolderRule(folderPath);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Add a tag to a folder rule
+   */
+  public addTagToFolderRule(folderPath: string, tag: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.addTagToFolderRule(folderPath, tag);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Remove a tag from a folder rule
+   */
+  public removeTagFromFolderRule(folderPath: string, tag: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.removeTagFromFolderRule(folderPath, tag);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Get inherited tags for a file path (from folder rules)
+   */
+  public getInheritedTags(filePath: string): string[] {
+    if (!this.db) return [];
+    return this.db.getInheritedTags(filePath);
+  }
+
+  /**
+   * Get effective inherited tags for a file (inherited minus exclusions)
+   */
+  public getEffectiveInheritedTags(uri: vscode.Uri): string[] {
+    if (!this.db) return [];
+    const relativePath = getRelativePath(uri);
+    if (!relativePath) return [];
+
+    const fileId = this.pathToIdCache.get(relativePath);
+    if (!fileId) {
+      return this.db.getInheritedTags(relativePath);
+    }
+    return this.db.getEffectiveInheritedTags(relativePath, fileId);
+  }
+
+  /**
+   * Get effective tags for a file (explicit + inherited)
+   */
+  public getEffectiveTags(uri: vscode.Uri): { explicit: string[]; inherited: string[] } {
+    if (!this.db) return { explicit: [], inherited: [] };
+    const relativePath = getRelativePath(uri);
+    if (!relativePath) return { explicit: [], inherited: [] };
+    return this.db.getEffectiveTags(relativePath);
+  }
+
+  /**
+   * Add an exclusion - file will not inherit this tag
+   */
+  public addFileTagExclusion(uri: vscode.Uri, tagName: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const relativePath = getRelativePath(uri);
+    if (!relativePath) return false;
+
+    const fileId = this.pathToIdCache.get(relativePath);
+    if (!fileId) return false;
+
+    const result = this.db.addFileTagExclusion(fileId, tagName);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update', filePath: relativePath });
+    }
+    return result;
+  }
+
+  /**
+   * Remove an exclusion
+   */
+  public removeFileTagExclusion(uri: vscode.Uri, tagName: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const relativePath = getRelativePath(uri);
+    if (!relativePath) return false;
+
+    const fileId = this.pathToIdCache.get(relativePath);
+    if (!fileId) return false;
+
+    const result = this.db.removeFileTagExclusion(fileId, tagName);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update', filePath: relativePath });
+    }
+    return result;
+  }
+
+  /**
+   * Get all excluded tags for a file
+   */
+  public getFileTagExclusions(uri: vscode.Uri): string[] {
+    if (!this.db) return [];
+    const relativePath = getRelativePath(uri);
+    if (!relativePath) return [];
+
+    const fileId = this.pathToIdCache.get(relativePath);
+    if (!fileId) return [];
+
+    return this.db.getFileTagExclusions(fileId);
+  }
+
   // ================== Lifecycle ==================
 
   public dispose(): void {
