@@ -181,6 +181,62 @@
         "command": "lattice.openAssociatedNotesHere",
         "title": "Open Associated Notes (Here)",
         "category": "Lattice"
+      },
+      {
+        "command": "lattice.tags.addTagToCurrentFile",
+        "title": "Add Tag to Current File",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.addTagToFile",
+        "title": "Add Tag to File",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.removeTagFromCurrentFile",
+        "title": "Remove Tag from Current File",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.showFileTags",
+        "title": "Show File Tags",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.setTagColor",
+        "title": "Set Tag Color",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.renameTag",
+        "title": "Rename Tag",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.deleteTag",
+        "title": "Delete Tag",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.refresh",
+        "title": "Refresh Tags",
+        "category": "Lattice Tags",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "lattice.tags.applyTemplate",
+        "title": "Apply Tag Template",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.createTemplate",
+        "title": "Create Tag Template",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.manageTemplates",
+        "title": "Manage Tag Templates",
+        "category": "Lattice Tags"
       }
     ],
     "grammars": [

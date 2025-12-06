@@ -796,4 +796,260 @@ export function registerTagCommands(
       }
     )
   );
+
+  // ==================== Template Commands ====================
+
+  // Apply template to current file
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.applyTemplate',
+      async (uri?: vscode.Uri) => {
+        if (!tagManager.getAllTemplates) {
+          vscode.window.showWarningMessage('Templates are not supported in this configuration');
+          return;
+        }
+
+        const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+        if (!targetUri) {
+          vscode.window.showWarningMessage('No file is currently open');
+          return;
+        }
+
+        const templates = tagManager.getAllTemplates();
+        if (templates.length === 0) {
+          const create = await vscode.window.showInformationMessage(
+            'No templates exist yet. Create one?',
+            'Create Template'
+          );
+          if (create) {
+            await vscode.commands.executeCommand('lattice.tags.createTemplate');
+          }
+          return;
+        }
+
+        const picked = await vscode.window.showQuickPick(
+          templates.map((t) => ({
+            label: t.name,
+            description: t.description || undefined,
+            detail: `+[${t.tagsToAdd.join(', ')}]${t.tagsToRemove.length > 0 ? ` -[${t.tagsToRemove.join(', ')}]` : ''}`,
+            template: t,
+          })),
+          { placeHolder: 'Select template to apply' }
+        );
+
+        if (picked && tagManager.applyTemplate) {
+          const success = await tagManager.applyTemplate(targetUri, picked.template.id);
+          if (success) {
+            vscode.window.showInformationMessage(`Applied template "${picked.label}"`);
+          } else {
+            vscode.window.showErrorMessage('Failed to apply template');
+          }
+        }
+      }
+    )
+  );
+
+  // Create new template
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.createTemplate',
+      async () => {
+        if (!tagManager.createTemplate) {
+          vscode.window.showWarningMessage('Templates are not supported in this configuration');
+          return;
+        }
+
+        // Get template name
+        const name = await vscode.window.showInputBox({
+          prompt: 'Enter template name',
+          placeHolder: 'e.g., New ML Paper',
+          validateInput: (value) => {
+            if (!value.trim()) return 'Name is required';
+            if (tagManager.getTemplateByName?.(value)) return 'A template with this name already exists';
+            return null;
+          },
+        });
+        if (!name) return;
+
+        // Get tags to add
+        const tagsInput = await vscode.window.showInputBox({
+          prompt: 'Enter tags to add (comma-separated)',
+          placeHolder: 'e.g., ml, paper, unread',
+          validateInput: (value) => {
+            if (!value.trim()) return 'At least one tag is required';
+            return null;
+          },
+        });
+        if (!tagsInput) return;
+
+        const tagsToAdd = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+
+        // Get tags to remove (optional)
+        const removeInput = await vscode.window.showInputBox({
+          prompt: 'Enter tags to remove when applying (comma-separated, optional)',
+          placeHolder: 'e.g., draft, wip',
+        });
+        const tagsToRemove = removeInput
+          ? removeInput.split(',').map((t) => t.trim()).filter(Boolean)
+          : undefined;
+
+        // Get description (optional)
+        const description = await vscode.window.showInputBox({
+          prompt: 'Enter template description (optional)',
+          placeHolder: 'e.g., Apply to newly downloaded ML papers',
+        });
+
+        // Create the template
+        const id = tagManager.createTemplate(name, tagsToAdd, {
+          description: description || undefined,
+          tagsToRemove,
+        });
+
+        vscode.window.showInformationMessage(`Created template "${name}"`);
+        return id;
+      }
+    )
+  );
+
+  // Manage templates (list/edit/delete)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'lattice.tags.manageTemplates',
+      async () => {
+        if (!tagManager.getAllTemplates) {
+          vscode.window.showWarningMessage('Templates are not supported in this configuration');
+          return;
+        }
+
+        const templates = tagManager.getAllTemplates();
+        if (templates.length === 0) {
+          const create = await vscode.window.showInformationMessage(
+            'No templates exist yet. Create one?',
+            'Create Template'
+          );
+          if (create) {
+            await vscode.commands.executeCommand('lattice.tags.createTemplate');
+          }
+          return;
+        }
+
+        const items = [
+          { label: '$(add) Create New Template', action: 'create' as const },
+          { label: '', kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem,
+          ...templates.map((t) => ({
+            label: t.name,
+            description: t.description || undefined,
+            detail: `+[${t.tagsToAdd.join(', ')}]${t.tagsToRemove.length > 0 ? ` -[${t.tagsToRemove.join(', ')}]` : ''}`,
+            action: 'edit' as const,
+            template: t,
+          })),
+        ];
+
+        const picked = await vscode.window.showQuickPick(items, {
+          placeHolder: 'Select template to manage',
+        });
+
+        if (!picked || !('action' in picked)) return;
+
+        if (picked.action === 'create') {
+          await vscode.commands.executeCommand('lattice.tags.createTemplate');
+          return;
+        }
+
+        if (picked.action === 'edit' && 'template' in picked) {
+          const template = picked.template;
+
+          const action = await vscode.window.showQuickPick(
+            [
+              { label: '$(edit) Edit Name', action: 'name' },
+              { label: '$(edit) Edit Description', action: 'description' },
+              { label: '$(add) Edit Tags to Add', action: 'tagsToAdd' },
+              { label: '$(remove) Edit Tags to Remove', action: 'tagsToRemove' },
+              { label: '$(trash) Delete Template', action: 'delete' },
+            ],
+            { placeHolder: `Manage "${template.name}"` }
+          );
+
+          if (!action) return;
+
+          switch (action.action) {
+            case 'name': {
+              const newName = await vscode.window.showInputBox({
+                prompt: 'Enter new template name',
+                value: template.name,
+                validateInput: (value) => {
+                  if (!value.trim()) return 'Name is required';
+                  const existing = tagManager.getTemplateByName?.(value);
+                  if (existing && existing.id !== template.id) {
+                    return 'A template with this name already exists';
+                  }
+                  return null;
+                },
+              });
+              if (newName && newName !== template.name) {
+                tagManager.updateTemplate?.(template.id, { name: newName });
+                vscode.window.showInformationMessage(`Renamed template to "${newName}"`);
+              }
+              break;
+            }
+            case 'description': {
+              const newDesc = await vscode.window.showInputBox({
+                prompt: 'Enter new description (leave empty to remove)',
+                value: template.description || '',
+              });
+              if (newDesc !== undefined) {
+                tagManager.updateTemplate?.(template.id, {
+                  description: newDesc || null,
+                });
+                vscode.window.showInformationMessage('Updated template description');
+              }
+              break;
+            }
+            case 'tagsToAdd': {
+              const newTags = await vscode.window.showInputBox({
+                prompt: 'Enter tags to add (comma-separated)',
+                value: template.tagsToAdd.join(', '),
+                validateInput: (value) => {
+                  if (!value.trim()) return 'At least one tag is required';
+                  return null;
+                },
+              });
+              if (newTags) {
+                const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
+                tagManager.updateTemplate?.(template.id, { tagsToAdd: tags });
+                vscode.window.showInformationMessage('Updated tags to add');
+              }
+              break;
+            }
+            case 'tagsToRemove': {
+              const newTags = await vscode.window.showInputBox({
+                prompt: 'Enter tags to remove (comma-separated, leave empty to clear)',
+                value: template.tagsToRemove.join(', '),
+              });
+              if (newTags !== undefined) {
+                const tags = newTags
+                  ? newTags.split(',').map((t) => t.trim()).filter(Boolean)
+                  : null;
+                tagManager.updateTemplate?.(template.id, { tagsToRemove: tags });
+                vscode.window.showInformationMessage('Updated tags to remove');
+              }
+              break;
+            }
+            case 'delete': {
+              const confirm = await vscode.window.showWarningMessage(
+                `Delete template "${template.name}"?`,
+                { modal: true },
+                'Delete'
+              );
+              if (confirm === 'Delete') {
+                tagManager.deleteTemplate?.(template.id);
+                vscode.window.showInformationMessage(`Deleted template "${template.name}"`);
+              }
+              break;
+            }
+          }
+        }
+      }
+    )
+  );
 }

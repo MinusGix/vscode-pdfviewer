@@ -765,6 +765,128 @@ export class TagManagerSqlite implements vscode.Disposable {
     );
   }
 
+  // ================== Template Operations ==================
+
+  /**
+   * Get all tag templates
+   */
+  public getAllTemplates(): import('../database').TagTemplate[] {
+    if (!this.db) return [];
+    return this.db.getAllTemplatesParsed();
+  }
+
+  /**
+   * Get a template by ID
+   */
+  public getTemplate(id: string): import('../database').TagTemplate | null {
+    if (!this.db) return null;
+    const dbTemplate = this.db.getTemplate(id);
+    if (!dbTemplate) return null;
+    return this.db.parseTemplate(dbTemplate);
+  }
+
+  /**
+   * Get a template by name
+   */
+  public getTemplateByName(name: string): import('../database').TagTemplate | null {
+    if (!this.db) return null;
+    const dbTemplate = this.db.getTemplateByName(name);
+    if (!dbTemplate) return null;
+    return this.db.parseTemplate(dbTemplate);
+  }
+
+  /**
+   * Create a new tag template
+   */
+  public createTemplate(
+    name: string,
+    tagsToAdd: string[],
+    options?: {
+      description?: string;
+      tagsToRemove?: string[];
+      shortcut?: string;
+    }
+  ): string {
+    if (!this.db) throw new Error('TagManager not initialized');
+    return this.db.createTemplate(name, tagsToAdd, options);
+  }
+
+  /**
+   * Update a tag template
+   */
+  public updateTemplate(
+    id: string,
+    updates: {
+      name?: string;
+      description?: string | null;
+      tagsToAdd?: string[];
+      tagsToRemove?: string[] | null;
+      shortcut?: string | null;
+    }
+  ): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    return this.db.updateTemplate(id, updates);
+  }
+
+  /**
+   * Delete a tag template
+   */
+  public deleteTemplate(id: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    return this.db.deleteTemplate(id);
+  }
+
+  /**
+   * Apply a template to a file (adds tagsToAdd, removes tagsToRemove)
+   */
+  public async applyTemplate(uri: vscode.Uri, templateId: string): Promise<boolean> {
+    if (!this.db) throw new Error('TagManager not initialized');
+
+    const dbTemplate = this.db.getTemplate(templateId);
+    if (!dbTemplate) return false;
+
+    const template = this.db.parseTemplate(dbTemplate);
+
+    // Remove tags first (if any)
+    if (template.tagsToRemove.length > 0) {
+      await this.removeTags(uri, template.tagsToRemove);
+    }
+
+    // Add tags
+    if (template.tagsToAdd.length > 0) {
+      await this.addTags(uri, template.tagsToAdd);
+    }
+
+    return true;
+  }
+
+  /**
+   * Apply a template to multiple files
+   */
+  public async applyTemplateToFiles(
+    uris: vscode.Uri[],
+    templateId: string
+  ): Promise<{ success: number; failed: number }> {
+    if (!this.db) throw new Error('TagManager not initialized');
+
+    const dbTemplate = this.db.getTemplate(templateId);
+    if (!dbTemplate) return { success: 0, failed: uris.length };
+
+    let success = 0;
+    let failed = 0;
+
+    for (const uri of uris) {
+      try {
+        await this.applyTemplate(uri, templateId);
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return { success, failed };
+  }
+
   // ================== Lifecycle ==================
 
   public dispose(): void {

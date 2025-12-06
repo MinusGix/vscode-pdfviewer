@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import { TaggedFile, Tag, TagQuery, TagChangeEvent } from './tagTypes';
+import { TagTemplate } from '../database';
 
 /**
  * Interface that both TagManager implementations must satisfy
@@ -44,6 +45,36 @@ export interface ITagManager extends vscode.Disposable {
   findMissingFile(fileId: string): Promise<void>;
   reassignFile(fileId: string, newUri: vscode.Uri): Promise<void>;
   dismissBrokenFile(fileId: string): void;
+
+  // Template operations (optional - only SQLite backend supports these)
+  getAllTemplates?(): TagTemplate[];
+  getTemplate?(id: string): TagTemplate | null;
+  getTemplateByName?(name: string): TagTemplate | null;
+  createTemplate?(
+    name: string,
+    tagsToAdd: string[],
+    options?: {
+      description?: string;
+      tagsToRemove?: string[];
+      shortcut?: string;
+    }
+  ): string;
+  updateTemplate?(
+    id: string,
+    updates: {
+      name?: string;
+      description?: string | null;
+      tagsToAdd?: string[];
+      tagsToRemove?: string[] | null;
+      shortcut?: string | null;
+    }
+  ): boolean;
+  deleteTemplate?(id: string): boolean;
+  applyTemplate?(uri: vscode.Uri, templateId: string): Promise<boolean>;
+  applyTemplateToFiles?(
+    uris: vscode.Uri[],
+    templateId: string
+  ): Promise<{ success: number; failed: number }>;
 }
 
 /**

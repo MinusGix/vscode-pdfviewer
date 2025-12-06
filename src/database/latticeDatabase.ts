@@ -19,9 +19,12 @@ import {
   DbNotesAssociation,
   DbFolderRule,
   DbViewMode,
+  DbTagTemplate,
   TagInstanceWithMetadata,
   FileWithTags,
   TagWithCount,
+  TagTemplate,
+  TagExpression,
   MigrationSource,
 } from './types';
 import { nanoid } from 'nanoid';
@@ -950,6 +953,164 @@ export class LatticeDatabase {
     }
 
     return Array.from(tags);
+  }
+
+  // ============================================================
+  // TAG TEMPLATE OPERATIONS
+  // ============================================================
+
+  /**
+   * Create a new tag template
+   */
+  public createTemplate(
+    name: string,
+    tagsToAdd: string[],
+    options?: {
+      description?: string;
+      tagsToRemove?: string[];
+      shortcut?: string;
+      conditions?: unknown;
+    }
+  ): string {
+    const id = nanoid();
+    const now = Date.now();
+    this.run(
+      `INSERT INTO tag_templates (id, name, description, tags_to_add, tags_to_remove, shortcut, conditions, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        name,
+        options?.description ?? null,
+        JSON.stringify(tagsToAdd.map((t) => t.toLowerCase())),
+        options?.tagsToRemove ? JSON.stringify(options.tagsToRemove.map((t) => t.toLowerCase())) : null,
+        options?.shortcut ?? null,
+        options?.conditions ? JSON.stringify(options.conditions) : null,
+        now,
+      ]
+    );
+    return id;
+  }
+
+  /**
+   * Get a template by ID
+   */
+  public getTemplate(id: string): DbTagTemplate | null {
+    return this.queryOne<DbTagTemplate>(
+      'SELECT * FROM tag_templates WHERE id = ?',
+      [id]
+    );
+  }
+
+  /**
+   * Get a template by name
+   */
+  public getTemplateByName(name: string): DbTagTemplate | null {
+    return this.queryOne<DbTagTemplate>(
+      'SELECT * FROM tag_templates WHERE name = ?',
+      [name]
+    );
+  }
+
+  /**
+   * Get all templates
+   */
+  public getAllTemplates(): DbTagTemplate[] {
+    return this.query<DbTagTemplate>(
+      'SELECT * FROM tag_templates ORDER BY name'
+    );
+  }
+
+  /**
+   * Update a template
+   */
+  public updateTemplate(
+    id: string,
+    updates: {
+      name?: string;
+      description?: string | null;
+      tagsToAdd?: string[];
+      tagsToRemove?: string[] | null;
+      shortcut?: string | null;
+      conditions?: unknown | null;
+    }
+  ): boolean {
+    const existing = this.getTemplate(id);
+    if (!existing) return false;
+
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+
+    if (updates.name !== undefined) {
+      setClauses.push('name = ?');
+      params.push(updates.name);
+    }
+    if (updates.description !== undefined) {
+      setClauses.push('description = ?');
+      params.push(updates.description);
+    }
+    if (updates.tagsToAdd !== undefined) {
+      setClauses.push('tags_to_add = ?');
+      params.push(JSON.stringify(updates.tagsToAdd.map((t) => t.toLowerCase())));
+    }
+    if (updates.tagsToRemove !== undefined) {
+      setClauses.push('tags_to_remove = ?');
+      params.push(updates.tagsToRemove ? JSON.stringify(updates.tagsToRemove.map((t) => t.toLowerCase())) : null);
+    }
+    if (updates.shortcut !== undefined) {
+      setClauses.push('shortcut = ?');
+      params.push(updates.shortcut);
+    }
+    if (updates.conditions !== undefined) {
+      setClauses.push('conditions = ?');
+      params.push(updates.conditions ? JSON.stringify(updates.conditions) : null);
+    }
+
+    if (setClauses.length === 0) return true;
+
+    params.push(id);
+    this.run(
+      `UPDATE tag_templates SET ${setClauses.join(', ')} WHERE id = ?`,
+      params
+    );
+    return true;
+  }
+
+  /**
+   * Delete a template
+   */
+  public deleteTemplate(id: string): boolean {
+    const existing = this.getTemplate(id);
+    if (!existing) return false;
+
+    this.run('DELETE FROM tag_templates WHERE id = ?', [id]);
+    return true;
+  }
+
+  /**
+   * Parse a DbTagTemplate into a TagTemplate
+   */
+  public parseTemplate(dbTemplate: DbTagTemplate): TagTemplate {
+    return {
+      id: dbTemplate.id,
+      name: dbTemplate.name,
+      description: dbTemplate.description,
+      tagsToAdd: JSON.parse(dbTemplate.tags_to_add) as string[],
+      tagsToRemove: dbTemplate.tags_to_remove
+        ? (JSON.parse(dbTemplate.tags_to_remove) as string[])
+        : [],
+      shortcut: dbTemplate.shortcut,
+      conditions: dbTemplate.conditions
+        ? (JSON.parse(dbTemplate.conditions) as TagExpression)
+        : null,
+      createdAt: dbTemplate.created_at,
+    };
+  }
+
+  /**
+   * Get all templates as parsed TagTemplate objects
+   */
+  public getAllTemplatesParsed(): TagTemplate[] {
+    return this.getAllTemplates().map((t) => this.parseTemplate(t));
   }
 }
 
