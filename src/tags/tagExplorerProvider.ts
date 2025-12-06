@@ -1652,4 +1652,182 @@ export function registerTagCommands(
       }
     )
   );
+
+  // ==================== Auto-Tagging Commands ====================
+
+  // Create auto-tag rule
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.tags.createAutoTagRule', async () => {
+      if (!tagManager.createAutoTagRule) {
+        vscode.window.showWarningMessage('Auto-tagging is not supported in this configuration');
+        return;
+      }
+
+      // Get folder pattern
+      const pattern = await vscode.window.showInputBox({
+        prompt: 'Enter folder pattern (e.g., src/components/** or docs/*)',
+        placeHolder: 'src/**',
+        validateInput: (value) => {
+          if (!value) return 'Pattern is required';
+          if (!value.includes('/')) return 'Pattern should include a path separator';
+          return null;
+        },
+      });
+      if (!pattern) return;
+
+      // Get tags to apply
+      const tagInput = await vscode.window.showInputBox({
+        prompt: 'Enter tags to auto-apply (comma-separated)',
+        placeHolder: 'frontend, react, component',
+      });
+      if (!tagInput) return;
+
+      const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean);
+      if (tags.length === 0) return;
+
+      const id = tagManager.createAutoTagRule(pattern, tags);
+      if (id) {
+        vscode.window.showInformationMessage(
+          `Created auto-tag rule: "${pattern}" → [${tags.join(', ')}]`
+        );
+      } else {
+        vscode.window.showErrorMessage('Failed to create auto-tag rule');
+      }
+    })
+  );
+
+  // Manage auto-tag rules
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.tags.manageAutoTagRules', async () => {
+      if (!tagManager.getAllAutoTagRules) {
+        vscode.window.showWarningMessage('Auto-tagging is not supported in this configuration');
+        return;
+      }
+
+      const rules = tagManager.getAllAutoTagRules();
+
+      if (rules.length === 0) {
+        const create = await vscode.window.showQuickPick(
+          [{ label: '$(add) Create New Auto-Tag Rule', action: 'create' }],
+          { placeHolder: 'No auto-tag rules exist yet' }
+        );
+        if (create?.action === 'create') {
+          await vscode.commands.executeCommand('lattice.tags.createAutoTagRule');
+        }
+        return;
+      }
+
+      type RuleItem = {
+        label: string;
+        description: string;
+        detail: string;
+        rule: (typeof rules)[0] | null;
+        action?: string;
+      };
+      const items: RuleItem[] = [
+        { label: '$(add) Create New Auto-Tag Rule', description: '', detail: '', rule: null, action: 'create' },
+        ...rules.map((r): RuleItem => ({
+          label: r.folderPattern,
+          description: r.enabled ? '' : '(disabled)',
+          detail: `Tags: ${r.tagsToApply.join(', ')}`,
+          rule: r,
+        })),
+      ];
+
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select an auto-tag rule to manage',
+      });
+      if (!picked) return;
+
+      if (picked.action === 'create') {
+        await vscode.commands.executeCommand('lattice.tags.createAutoTagRule');
+        return;
+      }
+
+      if (!picked.rule) return;
+
+      // Show management options for this rule
+      const action = await vscode.window.showQuickPick(
+        [
+          { label: '$(edit) Edit Pattern', action: 'editPattern' },
+          { label: '$(tag) Edit Tags', action: 'editTags' },
+          {
+            label: picked.rule.enabled ? '$(debug-pause) Disable' : '$(debug-start) Enable',
+            action: 'toggle',
+          },
+          { label: '$(trash) Delete Rule', action: 'delete' },
+        ],
+        { placeHolder: `Manage rule: ${picked.rule.folderPattern}` }
+      );
+      if (!action) return;
+
+      switch (action.action) {
+        case 'editPattern': {
+          const newPattern = await vscode.window.showInputBox({
+            prompt: 'Enter new folder pattern',
+            value: picked.rule.folderPattern,
+          });
+          if (newPattern) {
+            tagManager.updateAutoTagRule?.(picked.rule.id, { folderPattern: newPattern });
+            vscode.window.showInformationMessage('Auto-tag rule updated');
+          }
+          break;
+        }
+        case 'editTags': {
+          const newTags = await vscode.window.showInputBox({
+            prompt: 'Enter new tags (comma-separated)',
+            value: picked.rule.tagsToApply.join(', '),
+          });
+          if (newTags !== undefined) {
+            const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
+            tagManager.updateAutoTagRule?.(picked.rule.id, { tagsToApply: tags });
+            vscode.window.showInformationMessage('Auto-tag rule updated');
+          }
+          break;
+        }
+        case 'toggle': {
+          tagManager.setAutoTagRuleEnabled?.(picked.rule.id, !picked.rule.enabled);
+          vscode.window.showInformationMessage(
+            `Auto-tag rule ${!picked.rule.enabled ? 'enabled' : 'disabled'}`
+          );
+          break;
+        }
+        case 'delete': {
+          const confirm = await vscode.window.showWarningMessage(
+            `Delete auto-tag rule "${picked.rule.folderPattern}"?`,
+            { modal: true },
+            'Delete'
+          );
+          if (confirm === 'Delete') {
+            tagManager.deleteAutoTagRule?.(picked.rule.id);
+            vscode.window.showInformationMessage('Auto-tag rule deleted');
+          }
+          break;
+        }
+      }
+    })
+  );
+
+  // Apply auto-tags to current file
+  context.subscriptions.push(
+    vscode.commands.registerCommand('lattice.tags.applyAutoTags', async () => {
+      if (!tagManager.applyAutoTags) {
+        vscode.window.showWarningMessage('Auto-tagging is not supported in this configuration');
+        return;
+      }
+
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showWarningMessage('No file is currently open');
+        return;
+      }
+
+      const appliedTags = await tagManager.applyAutoTags(editor.document.uri);
+      if (appliedTags.length > 0) {
+        vscode.window.showInformationMessage(`Applied auto-tags: ${appliedTags.join(', ')}`);
+      } else {
+        vscode.window.showInformationMessage('No auto-tag rules match this file');
+      }
+    })
+  );
 }

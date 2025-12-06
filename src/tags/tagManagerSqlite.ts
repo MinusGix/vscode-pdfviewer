@@ -768,6 +768,15 @@ export class TagManagerSqlite implements vscode.Disposable {
             }
           }
         }
+
+        // Apply auto-tags for new files
+        const relativePath = getRelativePath(uri);
+        if (relativePath) {
+          const autoTags = this.db.getAutoTagsForPath(relativePath);
+          if (autoTags.length > 0) {
+            await this.addTags(uri, autoTags);
+          }
+        }
       })
     );
   }
@@ -1212,6 +1221,106 @@ export class TagManagerSqlite implements vscode.Disposable {
     if (!fileId) return [];
 
     return this.db.getFileTagExclusions(fileId);
+  }
+
+  // ================== Folder Auto-Tagging ==================
+
+  /**
+   * Get all auto-tag rules
+   */
+  public getAllAutoTagRules(): import('../database').FolderAutoTagRule[] {
+    if (!this.db) return [];
+    return this.db.getAllAutoTagRules();
+  }
+
+  /**
+   * Get an auto-tag rule by ID
+   */
+  public getAutoTagRule(id: string): import('../database').FolderAutoTagRule | null {
+    if (!this.db) return null;
+    return this.db.getAutoTagRule(id);
+  }
+
+  /**
+   * Create a new auto-tag rule
+   */
+  public createAutoTagRule(
+    folderPattern: string,
+    tagsToApply: string[],
+    options?: {
+      templateId?: string;
+      conditions?: import('../database').TagExpression;
+      enabled?: boolean;
+    }
+  ): string | null {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const id = this.db.createAutoTagRule(folderPattern, tagsToApply, options);
+    this._onDidChangeTags.fire({ type: 'update' });
+    return id;
+  }
+
+  /**
+   * Update an auto-tag rule
+   */
+  public updateAutoTagRule(
+    id: string,
+    updates: {
+      folderPattern?: string;
+      tagsToApply?: string[];
+      templateId?: string | null;
+      conditions?: import('../database').TagExpression | null;
+      enabled?: boolean;
+    }
+  ): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.updateAutoTagRule(id, updates);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Delete an auto-tag rule
+   */
+  public deleteAutoTagRule(id: string): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    const result = this.db.deleteAutoTagRule(id);
+    if (result) {
+      this._onDidChangeTags.fire({ type: 'update' });
+    }
+    return result;
+  }
+
+  /**
+   * Enable or disable an auto-tag rule
+   */
+  public setAutoTagRuleEnabled(id: string, enabled: boolean): boolean {
+    if (!this.db) throw new Error('TagManager not initialized');
+    return this.db.setAutoTagRuleEnabled(id, enabled);
+  }
+
+  /**
+   * Get tags that should be auto-applied to a file based on its path
+   */
+  public getAutoTagsForPath(filePath: string): string[] {
+    if (!this.db) return [];
+    return this.db.getAutoTagsForPath(filePath);
+  }
+
+  /**
+   * Apply auto-tags to a file (called when file is created/moved)
+   */
+  public async applyAutoTags(uri: vscode.Uri): Promise<string[]> {
+    if (!this.db) return [];
+    const relativePath = getRelativePath(uri);
+    if (!relativePath) return [];
+
+    const autoTags = this.db.getAutoTagsForPath(relativePath);
+    if (autoTags.length === 0) return [];
+
+    await this.addTags(uri, autoTags);
+    return autoTags;
   }
 
   // ================== Lifecycle ==================

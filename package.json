@@ -282,6 +282,21 @@
         "command": "lattice.tags.excludeInheritedTag",
         "title": "Exclude Inherited Tag from File",
         "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.createAutoTagRule",
+        "title": "Create Auto-Tag Rule",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.manageAutoTagRules",
+        "title": "Manage Auto-Tag Rules",
+        "category": "Lattice Tags"
+      },
+      {
+        "command": "lattice.tags.applyAutoTags",
+        "title": "Apply Auto-Tags to Current File",
+        "category": "Lattice Tags"
       }
     ],
     "grammars": [

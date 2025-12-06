@@ -93,6 +93,19 @@ export interface DbFolderAutoTag {
 }
 
 /**
+ * Parsed folder auto-tag rule
+ */
+export interface FolderAutoTagRule {
+  id: string;
+  folderPattern: string;
+  tagsToApply: string[];
+  templateId: string | null;
+  conditions: TagExpression | null;
+  enabled: boolean;
+  createdAt: number;
+}
+
+/**
  * View mode configuration
  */
 export interface DbViewMode {

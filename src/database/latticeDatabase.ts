@@ -19,6 +19,7 @@ import {
   DbDocumentMetadata,
   DbNotesAssociation,
   DbFolderRule,
+  DbFolderAutoTag,
   DbFileTagExclusion,
   DbViewMode,
   DbTagTemplate,
@@ -29,6 +30,7 @@ import {
   TagTemplate,
   TagExpression,
   FolderRule,
+  FolderAutoTagRule,
   MigrationSource,
 } from './types';
 import { nanoid } from 'nanoid';
@@ -1098,6 +1100,193 @@ export class LatticeDatabase {
       priority: dbRule.priority,
       createdAt: dbRule.created_at,
     };
+  }
+
+  // ============================================================
+  // FOLDER AUTO-TAG OPERATIONS
+  // ============================================================
+
+  /**
+   * Get all folder auto-tag rules
+   */
+  public getAllAutoTagRules(): FolderAutoTagRule[] {
+    const dbRules = this.query<DbFolderAutoTag>(
+      'SELECT * FROM folder_auto_tags ORDER BY folder_pattern ASC'
+    );
+    return dbRules.map((r) => this.parseAutoTagRule(r));
+  }
+
+  /**
+   * Get an auto-tag rule by ID
+   */
+  public getAutoTagRule(id: string): FolderAutoTagRule | null {
+    const result = this.queryOne<DbFolderAutoTag>(
+      'SELECT * FROM folder_auto_tags WHERE id = ?',
+      [id]
+    );
+    return result ? this.parseAutoTagRule(result) : null;
+  }
+
+  /**
+   * Get auto-tag rules matching a file path
+   */
+  public getAutoTagRulesForPath(filePath: string): FolderAutoTagRule[] {
+    const allRules = this.getAllAutoTagRules().filter((r) => r.enabled);
+    
+    return allRules.filter((rule) => {
+      const pattern = rule.folderPattern;
+      
+      // Simple glob-like matching
+      if (pattern.endsWith('/**')) {
+        // Recursive match: folder/** matches folder/x and folder/a/b/c
+        const prefix = pattern.slice(0, -3);
+        return filePath.startsWith(prefix + '/') || filePath === prefix;
+      } else if (pattern.endsWith('/*')) {
+        // Direct children only: folder/* matches folder/x but not folder/a/b
+        const prefix = pattern.slice(0, -2);
+        const relativePath = filePath.slice(prefix.length + 1);
+        return filePath.startsWith(prefix + '/') && !relativePath.includes('/');
+      } else {
+        // Exact folder match
+        return filePath.startsWith(pattern + '/');
+      }
+    });
+  }
+
+  /**
+   * Create a new auto-tag rule
+   */
+  public createAutoTagRule(
+    folderPattern: string,
+    tagsToApply: string[],
+    options: {
+      templateId?: string;
+      conditions?: TagExpression;
+      enabled?: boolean;
+    } = {}
+  ): string {
+    const id = nanoid();
+    const { templateId = null, conditions = null, enabled = true } = options;
+
+    this.run(
+      `INSERT INTO folder_auto_tags (id, folder_pattern, tags_to_apply, template_id, conditions, enabled, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        folderPattern,
+        JSON.stringify(tagsToApply.map((t) => t.toLowerCase())),
+        templateId,
+        conditions ? JSON.stringify(conditions) : null,
+        enabled ? 1 : 0,
+        Date.now(),
+      ]
+    );
+    return id;
+  }
+
+  /**
+   * Update an auto-tag rule
+   */
+  public updateAutoTagRule(
+    id: string,
+    updates: {
+      folderPattern?: string;
+      tagsToApply?: string[];
+      templateId?: string | null;
+      conditions?: TagExpression | null;
+      enabled?: boolean;
+    }
+  ): boolean {
+    const existing = this.getAutoTagRule(id);
+    if (!existing) {
+      return false;
+    }
+
+    const newPattern = updates.folderPattern ?? existing.folderPattern;
+    const newTags = updates.tagsToApply ?? existing.tagsToApply;
+    const newTemplateId = updates.templateId !== undefined ? updates.templateId : existing.templateId;
+    const newConditions = updates.conditions !== undefined ? updates.conditions : existing.conditions;
+    const newEnabled = updates.enabled ?? existing.enabled;
+
+    this.run(
+      `UPDATE folder_auto_tags 
+       SET folder_pattern = ?, tags_to_apply = ?, template_id = ?, conditions = ?, enabled = ?
+       WHERE id = ?`,
+      [
+        newPattern,
+        JSON.stringify(newTags.map((t) => t.toLowerCase())),
+        newTemplateId,
+        newConditions ? JSON.stringify(newConditions) : null,
+        newEnabled ? 1 : 0,
+        id,
+      ]
+    );
+    return true;
+  }
+
+  /**
+   * Delete an auto-tag rule
+   */
+  public deleteAutoTagRule(id: string): boolean {
+    const result = this.run(
+      'DELETE FROM folder_auto_tags WHERE id = ?',
+      [id]
+    );
+    return result.changes > 0;
+  }
+
+  /**
+   * Enable or disable an auto-tag rule
+   */
+  public setAutoTagRuleEnabled(id: string, enabled: boolean): boolean {
+    const result = this.run(
+      'UPDATE folder_auto_tags SET enabled = ? WHERE id = ?',
+      [enabled ? 1 : 0, id]
+    );
+    return result.changes > 0;
+  }
+
+  /**
+   * Parse a DB auto-tag rule to the application format
+   */
+  public parseAutoTagRule(dbRule: DbFolderAutoTag): FolderAutoTagRule {
+    return {
+      id: dbRule.id,
+      folderPattern: dbRule.folder_pattern,
+      tagsToApply: JSON.parse(dbRule.tags_to_apply) as string[],
+      templateId: dbRule.template_id,
+      conditions: dbRule.conditions ? JSON.parse(dbRule.conditions) : null,
+      enabled: dbRule.enabled === 1,
+      createdAt: dbRule.created_at,
+    };
+  }
+
+  /**
+   * Get tags that should be auto-applied to a file based on its path
+   */
+  public getAutoTagsForPath(filePath: string): string[] {
+    const rules = this.getAutoTagRulesForPath(filePath);
+    const tags = new Set<string>();
+
+    for (const rule of rules) {
+      // Add direct tags
+      for (const tag of rule.tagsToApply) {
+        tags.add(tag);
+      }
+
+      // Add tags from template if specified
+      if (rule.templateId) {
+        const template = this.getTemplate(rule.templateId);
+        if (template) {
+          const parsed = this.parseTemplate(template);
+          for (const tag of parsed.tagsToAdd) {
+            tags.add(tag);
+          }
+        }
+      }
+    }
+
+    return Array.from(tags);
   }
 
   // ============================================================

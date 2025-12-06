@@ -122,6 +122,33 @@ export interface ITagManager extends vscode.Disposable {
   addFileTagExclusion?(uri: vscode.Uri, tagName: string): boolean;
   removeFileTagExclusion?(uri: vscode.Uri, tagName: string): boolean;
   getFileTagExclusions?(uri: vscode.Uri): string[];
+
+  // Folder auto-tagging operations (optional - only SQLite backend supports these)
+  getAllAutoTagRules?(): import('../database').FolderAutoTagRule[];
+  getAutoTagRule?(id: string): import('../database').FolderAutoTagRule | null;
+  createAutoTagRule?(
+    folderPattern: string,
+    tagsToApply: string[],
+    options?: {
+      templateId?: string;
+      conditions?: import('../database').TagExpression;
+      enabled?: boolean;
+    }
+  ): string | null;
+  updateAutoTagRule?(
+    id: string,
+    updates: {
+      folderPattern?: string;
+      tagsToApply?: string[];
+      templateId?: string | null;
+      conditions?: import('../database').TagExpression | null;
+      enabled?: boolean;
+    }
+  ): boolean;
+  deleteAutoTagRule?(id: string): boolean;
+  setAutoTagRuleEnabled?(id: string, enabled: boolean): boolean;
+  getAutoTagsForPath?(filePath: string): string[];
+  applyAutoTags?(uri: vscode.Uri): Promise<string[]>;
 }
 
 /**
