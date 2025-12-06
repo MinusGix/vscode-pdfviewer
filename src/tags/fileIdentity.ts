@@ -47,6 +47,9 @@ export function getRelativePath(uri: vscode.Uri): string {
 
 /**
  * Get URI from workspace-relative path
+ * For single-folder workspaces, constructs the path directly.
+ * For multi-folder workspaces, returns the first folder's path
+ * (file existence should be checked by caller if needed).
  */
 export function getUriFromRelativePath(
   relativePath: string
@@ -56,13 +59,11 @@ export function getUriFromRelativePath(
     return undefined;
   }
 
-  // Try each workspace folder
-  for (const folder of workspaceFolders) {
-    const fullPath = path.join(folder.uri.fsPath, relativePath);
-    return vscode.Uri.file(fullPath);
-  }
-
-  return undefined;
+  // For simplicity, use the first workspace folder
+  // Multi-root workspace support would require async file existence checks
+  const folder = workspaceFolders[0];
+  const fullPath = path.join(folder.uri.fsPath, relativePath);
+  return vscode.Uri.file(fullPath);
 }
 
 /**

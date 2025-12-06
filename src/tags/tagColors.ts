@@ -88,8 +88,22 @@ export function getContrastTextColor(bgColor: string): 'black' | 'white' {
     return lightness > 55 ? 'black' : 'white';
   }
 
-  // For hex colors
-  const hexMatch = bgColor.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+  // For hex colors (both 3-digit and 6-digit)
+  // First try 6-digit hex
+  let hexMatch = bgColor.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+  if (!hexMatch) {
+    // Try 3-digit hex and expand it
+    const shortHexMatch = bgColor.match(/^#?([a-f\d])([a-f\d])([a-f\d])$/i);
+    if (shortHexMatch) {
+      // Expand 3-digit to 6-digit (e.g., #fff -> #ffffff)
+      hexMatch = [
+        bgColor,
+        shortHexMatch[1] + shortHexMatch[1],
+        shortHexMatch[2] + shortHexMatch[2],
+        shortHexMatch[3] + shortHexMatch[3],
+      ];
+    }
+  }
   if (hexMatch) {
     const r = parseInt(hexMatch[1], 16);
     const g = parseInt(hexMatch[2], 16);

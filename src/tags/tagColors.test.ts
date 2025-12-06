@@ -51,10 +51,17 @@ describe('tagColors', () => {
       expect(getContrastTextColor('hsl(240, 50%, 40%)')).toBe('white');
     });
 
-    it('should handle hex colors', () => {
+    it('should handle 6-digit hex colors', () => {
       expect(getContrastTextColor('#ffffff')).toBe('black');
       expect(getContrastTextColor('#000000')).toBe('white');
       expect(getContrastTextColor('#ff0000')).toBe('white'); // Red is dark
+    });
+
+    it('should handle 3-digit hex colors', () => {
+      expect(getContrastTextColor('#fff')).toBe('black');
+      expect(getContrastTextColor('#000')).toBe('white');
+      expect(getContrastTextColor('#f00')).toBe('white'); // Red is dark
+      expect(getContrastTextColor('#0f0')).toBe('black'); // Green is light
     });
 
     it('should default to white for unknown formats', () => {
