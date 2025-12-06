@@ -7,3 +7,4 @@ dist/
 
 ideas.md
 test-data/
+.vscode/lattice.db*

@@ -1,0 +1,77 @@
+/**
+ * TagManager Interface - Common interface for JSON and SQLite backends
+ * 
+ * This allows the extension to use either backend transparently.
+ */
+
+import * as vscode from 'vscode';
+import { TaggedFile, Tag, TagQuery, TagChangeEvent } from './tagTypes';
+
+/**
+ * Interface that both TagManager implementations must satisfy
+ */
+export interface ITagManager extends vscode.Disposable {
+  // Event for tag changes
+  readonly onDidChangeTags: vscode.Event<TagChangeEvent>;
+
+  // Initialization
+  initialize(): Promise<void>;
+  isInitialized?(): boolean;
+
+  // File operations
+  addTags(uri: vscode.Uri, tags: string[]): Promise<void>;
+  removeTags(uri: vscode.Uri, tags: string[]): Promise<void>;
+  setTags(uri: vscode.Uri, tags: string[]): Promise<void>;
+  getTags(uri: vscode.Uri): string[];
+  getTagsWithDisplayNames(uri: vscode.Uri): Array<{ name: string; displayName: string }>;
+  hasTag(uri: vscode.Uri, tag: string): boolean;
+
+  // Tag operations
+  getAllTags(): Tag[];
+  getFilesWithTag(tag: string): TaggedFile[];
+  renameTag(oldName: string, newName: string): Promise<void>;
+  deleteTag(tagName: string): Promise<void>;
+  setTagColor(tagName: string, color: string | null): void;
+  getTagColorValue(tagName: string): string;
+
+  // Query operations
+  findFiles(query: TagQuery): TaggedFile[];
+  getAllTrackedFiles(): TaggedFile[];
+  getBrokenFiles(): TaggedFile[];
+
+  // Recovery operations
+  checkAllFiles(): Promise<void>;
+  findMissingFile(fileId: string): Promise<void>;
+  reassignFile(fileId: string, newUri: vscode.Uri): Promise<void>;
+  dismissBrokenFile(fileId: string): void;
+}
+
+/**
+ * Global tag manager instance
+ */
+let globalTagManager: ITagManager | null = null;
+
+/**
+ * Get the current tag manager instance
+ */
+export function getTagManager(): ITagManager {
+  if (!globalTagManager) {
+    throw new Error('TagManager not initialized. Call initializeTagManager first.');
+  }
+  return globalTagManager;
+}
+
+/**
+ * Set the global tag manager instance
+ */
+export function setTagManager(manager: ITagManager): void {
+  globalTagManager = manager;
+}
+
+/**
+ * Check if tag manager is available
+ */
+export function hasTagManager(): boolean {
+  return globalTagManager !== null;
+}
+
