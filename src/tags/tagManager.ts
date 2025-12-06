@@ -25,7 +25,6 @@ import {
   getFileMetadata,
   fileExists,
   findRecoveryCandidates,
-  isSupportedFile,
 } from './fileIdentity';
 import { getTagColor } from './tagColors';
 
@@ -75,13 +74,6 @@ export class TagManager implements vscode.Disposable {
    * Add tags to a file (creates tracking entry if needed)
    */
   public async addTags(uri: vscode.Uri, tags: string[]): Promise<void> {
-    if (!isSupportedFile(uri)) {
-      vscode.window.showWarningMessage(
-        `File type not supported for tagging: ${path.extname(uri.fsPath)}`
-      );
-      return;
-    }
-
     const relativePath = getRelativePath(uri);
     let fileId = this.pathToIdMap.get(relativePath);
     let trackedFile: TaggedFile;
@@ -609,10 +601,6 @@ export class TagManager implements vscode.Disposable {
         }
       }),
       watcher.onDidCreate(async (uri) => {
-        if (!isSupportedFile(uri)) {
-          return;
-        }
-
         // Check if this might be a moved file
         const filename = path.basename(uri.fsPath);
         for (const file of Object.values(this.database.files)) {

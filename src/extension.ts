@@ -19,7 +19,7 @@ import {
   TagExplorerProvider,
   registerTagCommands,
 } from './tags';
-import { LatticeDatabase } from './database';
+import { LatticeDatabase, setExtensionUri } from './database';
 
 let activeCustomEditorTab: vscode.Tab | undefined;
 
@@ -54,52 +54,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const extensionRoot = context.extensionUri;
 
-  // Initialize tag system (SQLite with fallback to JSON)
-  // This also initializes the database if SQLite is available
+  // Set extension URI for database WASM loading
+  setExtensionUri(extensionRoot);
+
+  // Initialize tag system (SQLite only - no JSON fallback)
   const tagInitResult = await initializeTagSystem({
     extensionContext: context,
     showMigrationNotifications: true,
   });
   console.log(
-    `Lattice: Tag system initialized (SQLite: ${tagInitResult.usingSqlite}, Migration: ${tagInitResult.migrationPerformed})`
+    `Lattice: Tag system initialized (Migration: ${tagInitResult.migrationPerformed})`
   );
   context.subscriptions.push(tagInitResult.tagManager);
 
-  // Initialize managers based on whether SQLite is available
-  let documentTitleManager: DocumentTitleManager | DocumentTitleManagerSqlite;
-  let cardManager: CardManager | CardManagerSqlite;
-  let notesAssocManager: NotesAssociationManager | NotesAssociationManagerSqlite;
+  // Initialize SQLite-backed managers
+  console.log('Lattice: Using SQLite-backed managers');
 
-  if (tagInitResult.usingSqlite && LatticeDatabase.isInitialized()) {
-    // Use SQLite-backed managers
-    console.log('Lattice: Using SQLite-backed managers');
+  await DocumentTitleManagerSqlite.init();
+  const documentTitleManager = DocumentTitleManagerSqlite.getInstance();
+  context.subscriptions.push(documentTitleManager);
 
-    await DocumentTitleManagerSqlite.init();
-    documentTitleManager = DocumentTitleManagerSqlite.getInstance();
-    context.subscriptions.push(documentTitleManager);
+  const cardManager = CardManagerSqlite.getInstance();
+  await cardManager.initialize();
+  context.subscriptions.push(cardManager);
 
-    cardManager = CardManagerSqlite.getInstance();
-    await cardManager.initialize();
-    context.subscriptions.push(cardManager);
-
-    await NotesAssociationManagerSqlite.init();
-    notesAssocManager = NotesAssociationManagerSqlite.getInstance();
-    context.subscriptions.push({ dispose: () => notesAssocManager.dispose() });
-  } else {
-    // Fall back to original managers
-    console.log('Lattice: Using JSON-backed managers');
-
-    DocumentTitleManager.init(context.workspaceState);
-    documentTitleManager = DocumentTitleManager.getInstance();
-    context.subscriptions.push(documentTitleManager);
-
-    cardManager = CardManager.getInstance();
-    await cardManager.initialize();
-    context.subscriptions.push(cardManager);
-
-    notesAssocManager = NotesAssociationManager.getInstance();
-    context.subscriptions.push({ dispose: () => notesAssocManager.dispose() });
-  }
+  await NotesAssociationManagerSqlite.init();
+  const notesAssocManager = NotesAssociationManagerSqlite.getInstance();
+  context.subscriptions.push({ dispose: () => notesAssocManager.dispose() });
 
   // Register tag explorer tree view
   const tagExplorerProvider = new TagExplorerProvider(tagInitResult.tagManager);

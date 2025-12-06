@@ -1,8 +1,28 @@
 const esbuild = require('esbuild');
 const path = require('path');
+const fs = require('fs');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
+
+// Plugin to copy sql.js WASM file
+const copyWasmPlugin = {
+    name: 'copy-wasm',
+    setup(build) {
+        build.onEnd(() => {
+            // Copy sql-wasm.wasm from node_modules to dist
+            const srcWasm = path.join(__dirname, 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
+            const destWasm = path.join(__dirname, 'dist', 'sql-wasm.wasm');
+
+            if (fs.existsSync(srcWasm)) {
+                fs.copyFileSync(srcWasm, destWasm);
+                console.log('Copied sql-wasm.wasm to dist/');
+            } else {
+                console.warn('Warning: sql-wasm.wasm not found at', srcWasm);
+            }
+        });
+    }
+};
 
 async function main() {
     const ctx = await esbuild.context({
@@ -14,6 +34,7 @@ async function main() {
         sourcesContent: false,
         platform: 'node',
         outfile: 'dist/extension.js',
+        plugins: [copyWasmPlugin],
         external: [
             'vscode',
             // ESM-only markdown dependencies

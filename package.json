@@ -36,6 +36,25 @@
         "supported": true
       }
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lattice",
+          "title": "Lattice",
+          "icon": "$(tag)"
+        }
+      ]
+    },
+    "views": {
+      "lattice": [
+        {
+          "id": "lattice.tagExplorer",
+          "name": "Tags",
+          "icon": "$(tag)",
+          "contextualTitle": "Tag Explorer"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "lattice.preview.noteTransfer",
@@ -368,6 +387,7 @@
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
+    "sql.js": "^1.13.0",
     "ts-fsrs": "^4.5.1",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0"
@@ -375,6 +395,7 @@
   "devDependencies": {
     "@parcel/transformer-typescript-tsc": "^2.16.0",
     "@types/node": "^22.0.0",
+    "@types/sql.js": "^1.4.9",
     "@typescript-eslint/eslint-plugin": "^2.28.0",
     "@typescript-eslint/parser": "^2.28.0",
     "esbuild": "^0.25.10",
